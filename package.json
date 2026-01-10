@@ -1,0 +1,21 @@
+{
+  "name": "ice-alpha-pro",
+  "version": "2.5.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "start": "python main.py"
+  },
+  "dependencies": {
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "firebase": "^11.1.0",
+    "lucide-react": "^0.468.0"
+  },
+  "devDependencies": {
+    "vite": "^6.0.3",
+    "@vitejs/plugin-react": "^4.3.4"
+  }
+}
+

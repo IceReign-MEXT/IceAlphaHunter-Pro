@@ -1,5 +1,4 @@
-aiogram
-aiohttp
+pyTelegramBotAPI
+firebase-admin
 flask
-gunicorn
-python-dotenv
+requests
