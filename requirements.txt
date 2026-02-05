@@ -7,5 +7,4 @@ web3
 uvloop
 asyncpg
 etherscan-python
-
-
+solana
