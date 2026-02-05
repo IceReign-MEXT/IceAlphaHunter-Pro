@@ -6,4 +6,4 @@ python-dotenv
 web3
 uvloop
 asyncpg
-**etherscan-python**  <-- ADD THIS LINE
+
