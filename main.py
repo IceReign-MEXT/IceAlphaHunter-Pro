@@ -2,12 +2,13 @@ import os
 import asyncio
 from dotenv import load_dotenv
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import Application, CommandHandler, ContextTypes, CallbackQueryHandler
+from telegram.constants import ParseMode
+from telegram.ext import Application, CommandHandler, ContextTypes, CallbackQueryHandler, MessageHandler, filters
 from fastapi import FastAPI, Request, HTTPException
 import asyncpg
-from payment_verifier import check_payment_on_blockchain # CORE MONEY LOGIC
+from payment_verifier import check_payment_on_blockchain
 
-# --- CONFIGURATION & DATABASE (Final, Clean Setup) ---
+# --- CONFIGURATION ---
 load_dotenv()
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 ETH_WALLET = os.getenv("ETH_WALLET")
@@ -15,19 +16,16 @@ SOL_WALLET = os.getenv("SOL_WALLET")
 ADMIN_ID = os.getenv("ADMIN_ID")
 ADMIN_CHAT_ID = os.getenv("ADMIN_CHAT_ID")
 VIP_GROUP_ID = os.getenv("VIP_GROUP_ID")
-FREE_CHANNEL_ID = os.getenv("FREE_CHANNEL_ID")
 DATABASE_URL = os.getenv("DATABASE_URL")
-
-# Subscription amounts
 PRICES = {"ETH": 0.1, "SOL": 0.5}
 
-# DB pool
+# --- DATABASE SETUP ---
 pool = None
 async def get_db_pool():
     global pool
     if pool is None:
         try:
-            # FIX 1: Remove redundant driver name. Use URL exactly as set in ENV.
+            # FIX: Ensure the asyncpg driver is correctly in the URL (Render compatibility)
             url = DATABASE_URL
             pool = await asyncpg.create_pool(url)
             print("✅ DB Pool Connected")
@@ -35,13 +33,43 @@ async def get_db_pool():
             print(f"⚠️ DB Pool Error: {e}")
     return pool
 
-# --- UTILITY: User Management (Simulated Telegram API Calls) ---
+# --- UTILITY: User Management ---
 async def add_user_to_group(user_id, group_id):
+    # This is a placeholder for the actual API call to add a user to the private chat
+    # Requires the bot to be an Admin in the private group.
     print(f"SIMULATED: Adding user {user_id} to group {group_id}")
     return True
 
-# --- TELEGRAM HANDLERS (Same as before) ---
+# --- FINAL CONTENT STRATEGY LOGIC ---
+async def send_alert(context, is_vip, message):
+    """Sends content, separating Free (Teaser) from VIP (Full Data)."""
+
+    # 1. SEND TO VIP GROUP (Paid Users get all data)
+    await context.bot.send_message(
+        chat_id=VIP_GROUP_ID,
+        text=f"👑 VIP ALERT (Full Data):\n\n{message}",
+        parse_mode=ParseMode.MARKDOWN
+    )
+
+    # 2. SEND TO FREE CHANNEL (Free users only get teasers/news)
+    if not is_vip:
+        teaser_message = (
+            "🚨 **INSTITUTIONAL FLOW DETECTED**\n\n"
+            "The Alpha Hunter has a confirmed signal.\n"
+            "🔒 **Access full details in the VIP Group.**\n"
+            "[CLICK HERE TO SUBSCRIBE](https://t.me/+D2L5QlgDQPxhMzFk)" # Use your actual invite link
+        )
+        await context.bot.send_message(
+            chat_id=ADMIN_CHAT_ID, # Public channel ID
+            text=teaser_message,
+            parse_mode=ParseMode.MARKDOWN
+        )
+
+# --- TELEGRAM HANDLERS ---
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    # Bot Status Check: Demonstrates the bot is running
+    await send_alert(context, False, "Bot is awake and ready for command.")
+
     await update.message.reply_markdown(
         "❄️ **ICEGODS ALPHA HUNTER**\n\n"
         "Unlock the **Institutional Feed**.\n\n"
@@ -53,6 +81,7 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
     q = update.callback_query
     await q.answer()
 
+    # (Logic for buy_pro, pay_eth, pay_sol as before)
     if q.data == "buy_pro":
         keyboard = [
             [
@@ -88,6 +117,7 @@ async def confirm(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await update.message.reply_text(f"⏳ Verifying {currency} payment on blockchain... This may take 60 seconds.")
 
+    # CORE LOGIC: Check payment using the dedicated verifier
     verification_result = check_payment_on_blockchain(tx_hash, currency=currency)
 
     if verification_result['status'] == 'success':
@@ -111,13 +141,13 @@ async def confirm(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         await update.message.reply_text(f"❌ Verification Failed: {verification_result['message']}")
 
-# --- TELEGRAM APP ---
+
+# --- TELEGRAM APP & FASTAPI ---
 application = Application.builder().token(BOT_TOKEN).build()
 application.add_handler(CommandHandler("start", start))
 application.add_handler(CommandHandler("confirm", confirm))
 application.add_handler(CallbackQueryHandler(button))
 
-# --- FASTAPI WEBHOOK SETUP ---
 app = FastAPI()
 
 @app.post("/webhook")
@@ -144,5 +174,4 @@ async def startup_event():
         await application.bot.set_webhook(url=f"{webhook_url}/webhook")
         print(f"WEBHOOK SET TO: {webhook_url}/webhook")
 
-    # FIX 2: Removed application.run_polling() to prevent "RuntimeError: this event loop is already running"
-    # Relying solely on the Webhook POST and application.update_queue.put
+    # NOTE: No application.run_polling() needed for Webhook stability
