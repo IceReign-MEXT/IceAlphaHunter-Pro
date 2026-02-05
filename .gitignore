@@ -1,5 +1,10 @@
-.env
+# Virtual Environment
 venv/
+.venv/
+
+# Secrets (CRITICAL: Keeps secrets out of GitHub)
+.env
+
+# Python Artifacts
 __pycache__/
 *.pyc
-.DS_Store

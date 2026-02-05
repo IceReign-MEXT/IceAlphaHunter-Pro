@@ -1,21 +1,13 @@
-# 🔫 Ice Alpha Hunter - New Pair Sniper Bot
+# IceGods Alpha Hunter Pro - Institutional Feed
 
-**The "First Responder" for Crypto Gems.**
+This repository contains the core code for the automated, high-value crypto signal bot.
 
-Ice Alpha Hunter is a specialized intelligence unit designed to detect new token pairs on Ethereum before they trend. It filters for liquidity locks, contract safety, and whale entry volume.
+## Core Features:
+1.  **Automated Paywall:** Checks 0.1 ETH payment via `web3.py`.
+2.  **Stable Deployment:** Uses FastAPI/Gunicorn Webhook architecture.
+3.  **High-Value Content:** Grants access to the private Institutional Feed.
 
-## ⚡ Capabilities
-*   **Zero-Block Scanning:** Detects tokens the second they add liquidity.
-*   **Sniper Feed:** Auto-posts new pairs to a VIP Channel.
-*   **Ecosystem Integration:** Connects to the **IceGods Dashboard** for revenue tracking.
-*   **Auto-Invoicing:** Handles $50/month subscriptions automatically.
-
-## 🛠 Deployment
-1.  **Clone Repo**
-2.  **Set Environment Variables** (See `.env.example`)
-3.  **Deploy to Render** (Python 3 Runtime)
-
-## 💰 Pricing
-*   **Sniper Feed Access:** $50 (Lifetime)
-
-*Powered by IceReign MEXT Systems*
+### Deployment Status
+- **Architecture:** FastAPI/Gunicorn Webhook
+- **Payment Method:** Ethereum (ETH)
+- **Database:** PostgreSQL (for subscription tracking)
