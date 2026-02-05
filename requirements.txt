@@ -6,8 +6,6 @@ python-dotenv
 web3
 uvloop
 asyncpg
-<<<<<<< HEAD
-
-=======
 etherscan-python
->>>>>>> a6ced6a (Fix requirements.txt (etherscan-python))
+
+
