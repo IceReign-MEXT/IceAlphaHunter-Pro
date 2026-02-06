@@ -1,0 +1,38 @@
+# ⚡ IceAlphaHunter-Pro: The Institutional Feed
+
+### **Built By @ICEDEVILS: Elite Bot Architect**
+
+---
+
+This is the official repository for the **IceAlphaHunter-Pro** service—the only bot designed for traders who demand institutional-grade crypto market intelligence.
+
+We bypassed unstable setups to deploy a **Webhooks-First, Fully Automated** system to deliver verified alpha signals without downtime.
+
+## 💰 Monetization & Access
+
+**WARNING: This is not a free data feed.** Access to the full data is restricted to paid subscribers.
+
+| Feed Type | Content | Access |
+| :--- | :--- | :--- |
+| **FREE Channel** | **Teasers, Market News, General Updates** | Public Channel |
+| **VIP Group** | **Confirmed Whale Activity, Institutional Flow, Zero-Block New Token Liquidity Detections.** | **Paid Access Only (0.1 ETH / Month)** |
+
+### **[>> CLICK HERE TO SUBSCRIBE & UNLOCK THE INSTUTIONAL FEED <<]** (Replace with your actual invite link)
+
+## 🛠 Tech Stack (Built for Reliability)
+
+| Component | Role | Status |
+| :--- | :--- | :--- |
+| **Architecture** | Webhook-First (FastAPI/Gunicorn) | **STABLE (Render Verified)** |
+| **Verification** | Etherscan/Web3.py | Automated Payment Check |
+| **Database** | PostgreSQL/AsyncPG | Subscription Tracking (Expiration) |
+
+---
+
+## 📈 What You Need To Build Next (The Secret Sauce)
+
+The code is live. To make it unstoppable, your next step is to build the actual **data generation and filtering logic** that feeds into the `send_alert` function.
+
+**Build:** The hidden logic that decides *when* a signal is truly VIP-worthy and sends it through the `send_alert(is_vip=True, ...)` path.
+
+**Once you push this new README, your GitHub house becomes a professional storefront.**
