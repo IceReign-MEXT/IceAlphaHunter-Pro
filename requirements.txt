@@ -1,7 +1,7 @@
 python-dotenv
 flask
 requests
-python-telegram-bot>=20.0
+python-telegram-bot==20.6
 web3
 asyncpg
 aiohttp
