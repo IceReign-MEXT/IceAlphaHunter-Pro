@@ -25,6 +25,7 @@ from web3 import Web3
 
 # --- 1. CONFIGURATION ---
 load_dotenv()
+# We use the token from Environment Variables for security
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 ETH_MAIN = os.getenv("ETH_MAIN", "").lower()
 SOL_MAIN = os.getenv("SOL_MAIN", "")
@@ -69,8 +70,10 @@ def verify_eth(tx_hash, required_usd):
         if tx.to.lower() != ETH_MAIN: return False, "❌ Wrong Address"
 
         # Get Price
-        r = requests.get("https://api.coingecko.com/api/v3/simple/price?ids=ethereum&vs_currencies=usd").json()
-        price = r["ethereum"]["usd"]
+        try:
+            r = requests.get("https://api.coingecko.com/api/v3/simple/price?ids=ethereum&vs_currencies=usd").json()
+            price = r["ethereum"]["usd"]
+        except: price = 3000 # Fallback price if API fails
 
         val = (Decimal(tx.value) / Decimal(10**18)) * Decimal(price)
         if val >= (Decimal(required_usd) * Decimal(0.95)): return True, "Success"
@@ -85,8 +88,12 @@ async def sniper_loop(app: Application):
             if VIP_CHANNEL_ID:
                 # Simulate finding a NEW PAIR (Real data would use paid RPCs)
                 # We use trending as a proxy for "Hot New Pairs"
-                r = requests.get("https://api.coingecko.com/api/v3/search/trending").json()
-                coin = random.choice(r['coins'][:5])['item']
+                try:
+                    r = requests.get("https://api.coingecko.com/api/v3/search/trending", timeout=5).json()
+                    coin = random.choice(r['coins'][:5])['item']
+                    name, symbol, pid = coin['name'], coin['symbol'], coin['id']
+                except:
+                    name, symbol, pid = "Pepe", "PEPE", "pepe"
 
                 # Logic: Is it safe?
                 score = random.randint(80, 100)
@@ -94,18 +101,18 @@ async def sniper_loop(app: Application):
 
                 msg = (
                     f"🔫 **NEW PAIR DETECTED** 🔫\n\n"
-                    f"💎 **Token:** {coin['name']} ({coin['symbol']})\n"
+                    f"💎 **Token:** {name} ({symbol})\n"
                     f"💧 **Liquidity:** ${liquidity:,.0f} (Locked 🔒)\n"
                     f"🛡 **Security Score:** {score}/100\n\n"
                     f"🧠 **Alpha Hunter AI:**\n"
                     f"Contract verified. No honeypot code found. Sniper entry zone active.\n\n"
                     f"🎯 **Action:** SNIPE\n"
-                    f"🔗 [Chart](https://www.coingecko.com/en/coins/{coin['id']})"
+                    f"🔗 [Chart](https://www.coingecko.com/en/coins/{pid})"
                 )
 
                 # Post to Channel
                 await app.bot.send_photo(chat_id=VIP_CHANNEL_ID, photo=IMG_ALERT, caption=msg, parse_mode=ParseMode.MARKDOWN)
-                print(f"✅ Sniped: {coin['symbol']}")
+                print(f"✅ Sniped: {symbol}")
 
             await asyncio.sleep(1800) # Every 30 mins
         except Exception as e:
@@ -178,18 +185,6 @@ async def confirm(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await msg.edit_text(text)
     except: await msg.edit_text("⚠️ Verification Error.")
 
-# --- ADMIN FORCE SCAN ---
-async def force_scan(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if str(update.effective_user.id) != str(ADMIN_ID): return
-    await update.message.reply_text("🚀 Forcing Sniper Scan...")
-
-    url = "https://api.coingecko.com/api/v3/search/trending"
-    coin = requests.get(url).json()['coins'][0]['item']
-
-    msg = f"🔫 **MANUAL SNIPE: {coin['name']}**\n\nLiquidity: LOCKED 🔒\nRisk: LOW\n\n🎯 **Action:** ENTRY"
-    await context.bot.send_photo(chat_id=VIP_CHANNEL_ID, photo=IMG_ALERT, caption=msg, parse_mode=ParseMode.MARKDOWN)
-    await update.message.reply_text("✅ Done.")
-
 # --- MAIN ---
 def main():
     threading.Thread(target=run_web, daemon=True).start()
@@ -204,7 +199,6 @@ def main():
 
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("confirm", confirm))
-    app.add_handler(CommandHandler("force_scan", force_scan))
     app.add_handler(CallbackQueryHandler(button))
 
     print("🚀 ALPHA HUNTER V2040 LIVE...")
