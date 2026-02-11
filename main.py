@@ -185,24 +185,33 @@ async def confirm(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await msg.edit_text(text)
     except: await msg.edit_text("⚠️ Verification Error.")
 
-# --- MAIN ---
+# --- MAIN EXECUTION ---
 def main():
+    # 1. Start Web Server
     threading.Thread(target=run_web, daemon=True).start()
-    app = Application.builder().token(BOT_TOKEN).build()
 
+    # 2. Force Clear Webhooks (Fixes "Not Responding" error)
+    app_bot = Application.builder().token(BOT_TOKEN).build()
+    print("♻️  Clearing old connections...")
+    asyncio.run(app_bot.bot.delete_webhook(drop_pending_updates=True))
+
+    # 3. Connect Database
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
     try: loop.run_until_complete(init_db())
     except: pass
 
-    loop.create_task(sniper_loop(app))
+    # 4. Start Sniper Engine
+    loop.create_task(sniper_loop(app_bot))
 
-    app.add_handler(CommandHandler("start", start))
-    app.add_handler(CommandHandler("confirm", confirm))
-    app.add_handler(CallbackQueryHandler(button))
+    # 5. Add Handlers
+    app_bot.add_handler(CommandHandler("start", start))
+    app_bot.add_handler(CommandHandler("confirm", confirm))
+    app_bot.add_handler(CommandHandler("force_scan", force_scan))
+    app_bot.add_handler(CallbackQueryHandler(button))
 
-    print("🚀 ALPHA HUNTER V2040 LIVE...")
-    app.run_polling()
+    print("🚀 ICE ALPHA HUNTER RESTARTED & LISTENING...")
+    app_bot.run_polling()
 
 if __name__ == "__main__":
     main()
