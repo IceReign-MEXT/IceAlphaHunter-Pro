@@ -1,5 +1,5 @@
-python-telegram-bot==20.8
+python-telegram-bot
 python-dotenv==1.0.1
 requests==2.31.0
-solathon==1.0.7
+solathon
 cryptography==42.0.5
