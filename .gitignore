@@ -1,4 +1,7 @@
 .env
+.env.local
+*.key
+wallet.json
 __pycache__/
 *.pyc
-data/settings.json
+node_modules/
