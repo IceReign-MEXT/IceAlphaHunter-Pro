@@ -21,15 +21,12 @@ class WhaleMonitor:
         
         async with aiohttp.ClientSession() as session:
             try:
-                # Get recent significant transactions
                 payload = {
                     "query": {
                         "types": ["TRANSFER", "SWAP"],
-                        "minAmount": self.min_sol_amount * 1e9  # Convert to lamports
+                        "minAmount": self.min_sol_amount * 1e9
                     },
-                    "options": {
-                        "limit": 10
-                    }
+                    "options": {"limit": 10}
                 }
                 
                 async with session.post(url, json=payload) as resp:
@@ -44,7 +41,7 @@ class WhaleMonitor:
         """Filter and format whale moves"""
         signals = []
         for tx in transactions:
-            amount = float(tx.get('amount', 0)) / 1e9  # Convert to SOL
+            amount = float(tx.get('amount', 0)) / 1e9
             
             if amount >= self.min_sol_amount:
                 signal = {
@@ -56,7 +53,6 @@ class WhaleMonitor:
                     "timestamp": datetime.now().isoformat()
                 }
                 signals.append(signal)
-                
         return signals
     
     async def send_alert(self, signal):
@@ -86,5 +82,4 @@ class WhaleMonitor:
 
 if __name__ == "__main__":
     monitor = WhaleMonitor()
-    # Test run
     asyncio.run(monitor.fetch_whale_transactions())

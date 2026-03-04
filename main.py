@@ -13,7 +13,6 @@ class IceAlphaBot:
         self.is_monitoring = False
         
     async def start(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Start command - Admin only"""
         user_id = str(update.effective_user.id)
         if user_id != os.getenv("ADMIN_ID"):
             await update.message.reply_text("⛔ Unauthorized")
@@ -43,7 +42,6 @@ class IceAlphaBot:
         )
     
     async def button_handler(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Handle button clicks"""
         query = update.callback_query
         await query.answer()
         
@@ -63,20 +61,18 @@ class IceAlphaBot:
             await query.edit_message_text("💰 Balance check coming soon...", parse_mode='HTML')
     
     async def run_monitor_loop(self):
-        """Continuous monitoring"""
         while self.is_monitoring:
             try:
                 signals = await self.monitor.fetch_whale_transactions()
                 for signal in signals:
                     await self.monitor.send_alert(signal)
-                    await asyncio.sleep(2)  # Avoid rate limits
-                await asyncio.sleep(30)  # Check every 30 seconds
+                    await asyncio.sleep(2)
+                await asyncio.sleep(30)
             except Exception as e:
                 print(f"Monitor error: {e}")
                 await asyncio.sleep(5)
     
     async def send_test_signal(self, context: ContextTypes.DEFAULT_TYPE):
-        """Send demo signal"""
         test_signal = {
             "type": "TEST",
             "whale": "4ACfp...7NhDEE",
