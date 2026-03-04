@@ -2,6 +2,4 @@ python-telegram-bot==20.7
 python-dotenv==1.0.1
 requests==2.31.0
 solathon==1.0.0
-helius-api==0.1.0
-asyncio==3.4.3
-websockets==12.0
+aiohttp==3.9.1

@@ -1,0 +1,22 @@
+services:
+  - type: web
+    name: ice-alpha-hunter
+    runtime: python
+    plan: standard
+    buildCommand: pip install -r requirements.txt
+    startCommand: python main.py
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.0
+      - key: BOT_TOKEN
+        sync: false
+      - key: BOT_PRIVATE_KEY
+        sync: false
+      - key: RPC_URL
+        sync: false
+      - key: ADMIN_ID
+        sync: false
+      - key: CHANNEL_ID
+        sync: false
+      - key: HELIUS_API_KEY
+        sync: false

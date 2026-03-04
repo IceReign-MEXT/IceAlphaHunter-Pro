@@ -1,7 +1,36 @@
+# Environment variables - NEVER COMMIT THESE
 .env
 .env.local
+.env.production
+
+# Keys and wallets
 *.key
+*.pem
 wallet.json
+id.json
+
+# Python
 __pycache__/
-*.pyc
-node_modules/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+
+# Data
+*.db
+*.sqlite
+*.log
+pending_trades.json
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
