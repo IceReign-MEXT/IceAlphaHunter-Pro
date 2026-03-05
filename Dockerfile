@@ -1,29 +1,30 @@
-FROM python:3.11-slim
+# Use official Python 3.11 image (stable, no 3.14 issues)
+FROM python:3.11-slim-bullseye
 
+# Set working directory
 WORKDIR /app
 
-# Install system dependencies
+# Install system dependencies (for psycopg2 if needed)
 RUN apt-get update && apt-get install -y \
     gcc \
     libpq-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy requirements first for better caching
+# Upgrade pip first
+RUN pip install --upgrade pip setuptools wheel
+
+# Copy requirements first (for layer caching)
 COPY requirements.txt .
+
+# Install Python dependencies
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy application code
 COPY . .
 
-# Create non-root user
-RUN useradd -m -u 1000 botuser && chown -R botuser:botuser /app
-USER botuser
+# Create non-root user for security
+RUN useradd -m -u 1000 appuser && chown -R appuser:appuser /app
+USER appuser
 
-# Expose port for health checks
-EXPOSE 8080
-
-# Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD python -c "import sys; sys.exit(0)"
-
+# Run the bot
 CMD ["python", "main.py"]
