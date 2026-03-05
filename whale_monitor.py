@@ -1,11 +1,15 @@
-"""Helius WebSocket Whale Monitor"""
+"""Whale Monitor - Pure Python"""
 import asyncio
 import aiohttp
 import json
+import threading
+import logging
 from typing import Callable, List, Dict, Any, Optional
 from dataclasses import dataclass
 from datetime import datetime
 from config import config
+
+logger = logging.getLogger(__name__)
 
 @dataclass
 class WhaleTrade:
@@ -115,7 +119,7 @@ class WhaleMonitor:
             )
             
         except Exception as e:
-            print(f"Parse error: {e}")
+            logger.error(f"Parse error: {e}")
             return None
     
     async def start_monitoring(self):
@@ -126,7 +130,7 @@ class WhaleMonitor:
             try:
                 async with aiohttp.ClientSession() as session:
                     async with session.ws_connect(self.helius_ws_url) as ws:
-                        print("🔗 Connected to Helius WebSocket")
+                        logger.info("🔗 Connected to Helius WebSocket")
                         
                         subscribe_msg = {
                             "jsonrpc": "2.0",
@@ -151,7 +155,7 @@ class WhaleMonitor:
                                 data = json.loads(msg.data)
                                 
                                 if 'result' in data:
-                                    print(f"✅ Subscription confirmed: {data['result']}")
+                                    logger.info(f"✅ Subscription confirmed: {data['result']}")
                                     continue
                                 
                                 if 'params' in data and 'result' in data['params']:
@@ -159,27 +163,31 @@ class WhaleMonitor:
                                     whale_trade = await self._parse_transaction(tx_data)
                                     
                                     if whale_trade:
-                                        print(f"🐋 WHALE: {whale_trade.token_symbol} "
-                                              f"${whale_trade.amount_usd:,.2f} "
-                                              f"({whale_trade.transaction_type.upper()})")
+                                        logger.info(f"🐋 WHALE: {whale_trade.token_symbol} "
+                                                  f"${whale_trade.amount_usd:,.2f} "
+                                                  f"({whale_trade.transaction_type.upper()})")
                                         
                                         for callback in self.callbacks:
                                             try:
-                                                await callback(whale_trade)
+                                                callback(whale_trade)
                                             except Exception as e:
-                                                print(f"Callback error: {e}")
+                                                logger.error(f"Callback error: {e}")
                             
                             elif msg.type == aiohttp.WSMsgType.ERROR:
-                                print(f"WebSocket error: {ws.exception()}")
+                                logger.error(f"WebSocket error: {ws.exception()}")
                                 break
                             
                             elif msg.type == aiohttp.WSMsgType.CLOSED:
-                                print("WebSocket closed")
+                                logger.info("WebSocket closed")
                                 break
                                 
             except Exception as e:
-                print(f"Monitor error: {e}")
+                logger.error(f"Monitor error: {e}")
                 await asyncio.sleep(5)
+    
+    def start_monitoring_sync(self):
+        """Sync wrapper for threading"""
+        asyncio.run(self.start_monitoring())
     
     def stop(self):
         """Stop monitoring"""

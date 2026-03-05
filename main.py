@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""IceAlpha Hunter Pro - Async Version"""
-import asyncio
-import logging
+"""IceAlpha Hunter Pro - Sync Version (No Pydantic)"""
+import os
 import sys
+import logging
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -14,7 +14,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-async def main():
+def main():
     """Main entry point"""
     logger.info("🚀 Starting IceAlpha Hunter Pro...")
     
@@ -31,7 +31,7 @@ async def main():
     bot = TelegramBot()
     
     try:
-        await bot.run()
+        bot.run()
     except KeyboardInterrupt:
         logger.info("🛑 Shutdown requested")
     except Exception as e:
@@ -39,4 +39,4 @@ async def main():
         raise
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    main()
