@@ -1,23 +1,30 @@
 services:
-  - type: web
-    name: icealpha-hunter
-    runtime: python
+  - type: worker
+    name: icealpha-hunter-bot
+    runtime: docker
     plan: starter
-    
-    # Force Python 3.11
     envVars:
-      - key: RENDER_PYTHON_VERSION
-        value: 3.11.0
-    
-    buildCommand: |
-      # Install Python 3.11 if available
-      apt-get update && apt-get install -y python3.11 python3.11-pip 2>/dev/null || true
-      pip install --upgrade pip
-      pip install -r requirements.txt
-    
-    startCommand: python main.py
-
-databases:
-  - name: icealpha-db
-    databaseName: icealpha
-    user: icealpha
+      - key: BOT_TOKEN
+        sync: false
+      - key: HELIUS_API_KEY
+        sync: false
+      - key: HELIUS_RPC_URL
+        sync: false
+      - key: WALLET_PRIVATE_KEY
+        sync: false
+      - key: WALLET_PUBLIC_KEY
+        sync: false
+      - key: CHANNEL_ID
+        sync: false
+      - key: ADMIN_ID
+        sync: false
+      - key: MIN_WHALE_AMOUNT_USD
+        value: 5000
+      - key: MAX_POSITION_SOL
+        value: 1.0
+      - key: SLIPPAGE_BPS
+        value: 100
+      - key: AUTO_TRADE_ENABLED
+        value: false
+      - key: DATABASE_URL
+        sync: false
