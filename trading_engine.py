@@ -1,7 +1,7 @@
-"""Trading Engine - Solders-free version for Termux"""
+"""Pure Python Trading Engine - No Rust dependencies"""
 import aiohttp
 import asyncio
-import base58
+import base64
 from typing import Dict, Optional, Any
 from dataclasses import dataclass
 from config import config
@@ -23,9 +23,8 @@ class TradingEngine:
         self.jupiter_swap_url = config.JUPITER_SWAP_API
         self.slippage_bps = config.SLIPPAGE_BPS
         
-        print(f"⚠️  TradingEngine initialized in MONITOR-ONLY mode")
+        print(f"⚠️  TradingEngine: MONITOR-ONLY mode")
         print(f"   Wallet: {self.wallet_public[:20]}...")
-        print(f"   Auto-trade: {config.AUTO_TRADE_ENABLED}")
     
     async def get_quote(self, input_mint: str, output_mint: str, 
                        amount_lamports: int) -> Optional[Dict]:
@@ -49,7 +48,7 @@ class TradingEngine:
             return None
     
     async def buy_token(self, token_mint: str, sol_amount: float) -> SwapResult:
-        """Buy token (simulated in Termux)"""
+        """Simulated buy"""
         if not config.AUTO_TRADE_ENABLED:
             return SwapResult(
                 success=False, 
@@ -60,45 +59,40 @@ class TradingEngine:
                 price_impact=0
             )
         
-        # In production on Render, this would execute real swap
-        # For Termux testing, we simulate
         print(f"📝 SIMULATED BUY: {sol_amount} SOL -> {token_mint[:8]}...")
         return SwapResult(
             success=True,
-            signature="SIMULATED_" + token_mint[:8],
+            signature="SIM_" + token_mint[:8],
             error=None,
             input_amount=sol_amount,
-            output_amount=sol_amount * 100,  # Simulated
+            output_amount=sol_amount * 100,
             price_impact=0.5
         )
     
     async def sell_token(self, token_mint: str, token_amount: float,
                          decimals: int = 9) -> SwapResult:
-        """Sell token (simulated in Termux)"""
-        print(f"📝 SIMULATED SELL: {token_amount} tokens -> SOL")
+        """Simulated sell"""
+        print(f"📝 SIMULATED SELL: {token_amount} tokens")
         return SwapResult(
             success=True,
-            signature="SIMULATED_SELL_" + token_mint[:8],
+            signature="SIM_SELL_" + token_mint[:8],
             error=None,
             input_amount=token_amount,
-            output_amount=token_amount * 0.01,  # Simulated
+            output_amount=token_amount * 0.01,
             price_impact=0.5
         )
     
     def calculate_position_size(self, whale_amount_usd: float) -> float:
-        """Calculate position"""
         base = min(whale_amount_usd * 0.05, config.MAX_POSITION_SOL)
         return max(base, 0.1)
     
     async def validate_token(self, token_mint: str) -> Dict[str, Any]:
-        """Validate token"""
         validation = {'valid': False, 'reason': '', 'liquidity': 0}
         
         if len(token_mint) != 44:
             validation['reason'] = 'Invalid address'
             return validation
         
-        # Check Jupiter route
         quote = await self.get_quote(
             "So11111111111111111111111111111111111111112",
             token_mint,
@@ -114,5 +108,4 @@ class TradingEngine:
         return validation
     
     async def close(self):
-        """Cleanup"""
         pass
