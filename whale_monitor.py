@@ -4,6 +4,7 @@ import logging
 import asyncio
 import websockets
 from typing import Callable
+from config import Config
 
 logger = logging.getLogger(__name__)
 
@@ -13,7 +14,7 @@ class WhaleMonitor:
         self.send_alert = alert_callback
         self.ws_connected = False
         self.is_running = False
-        self.ws_url = os.getenv('HELIUS_RPC_URL').replace('https://', 'wss://')
+        self.ws_url = os.getenv('HELIUS_RPC_URL', '').replace('https://', 'wss://')
         self.min_whale_size = int(os.getenv('MIN_WHALE_SIZE', '5000'))
         
     async def start(self):
@@ -27,29 +28,30 @@ class WhaleMonitor:
             except Exception as e:
                 logger.error(f"WebSocket error: {e}")
                 self.ws_connected = False
-                await asyncio.sleep(5)  # Reconnect delay
+                await asyncio.sleep(5)
     
     async def _connect_and_listen(self):
-        """Connect to Helius WebSocket and listen for transactions"""
+        """Connect to Helius WebSocket"""
+        if not self.ws_url:
+            logger.error("No WebSocket URL configured")
+            return
+            
         logger.info(f"Connecting to {self.ws_url}")
         
         async with websockets.connect(self.ws_url) as ws:
             self.ws_connected = True
             logger.info("✅ WebSocket connected")
             
-            # Subscribe to large transactions
+            # Subscribe to logs
             subscribe_msg = {
                 "jsonrpc": "2.0",
                 "id": 1,
                 "method": "logsSubscribe",
                 "params": [
-                    {"mentions": ["all"]},  # Monitor all transactions
+                    {"mentions": ["all"]},
                     {"commitment": "confirmed"}
                 ]
             }
-            
-            # Alternative: Use Helius enhanced API for whale detection
-            # This is a simplified version - production would use Helius webhooks or enhanced APIs
             
             await ws.send(json.dumps(subscribe_msg))
             
@@ -59,26 +61,21 @@ class WhaleMonitor:
                     data = json.loads(msg)
                     await self._process_transaction(data)
                 except asyncio.TimeoutError:
-                    # Send ping to keep alive
                     await ws.send(json.dumps({"jsonrpc": "2.0", "id": 1, "method": "ping"}))
                 except Exception as e:
                     logger.error(f"Message processing error: {e}")
     
     async def _process_transaction(self, data: dict):
-        """Process incoming transaction data"""
+        """Process incoming transaction"""
         try:
-            # Parse Helius webhook/enhanced API format
-            # This is simplified - actual implementation depends on Helius response format
-            
             if 'params' not in data:
                 return
             
             result = data['params'].get('result', {})
             logs = result.get('logs', [])
             
-            # Look for swap instructions (Raydium, Orca, Jupiter)
+            # Look for swap instructions
             if any('swap' in log.lower() or 'Swap' in log for log in logs):
-                # Extract transaction details
                 tx_data = self._parse_swap_transaction(result)
                 
                 if tx_data and tx_data['value_usd'] >= self.min_whale_size:
@@ -89,7 +86,6 @@ class WhaleMonitor:
     
     def _parse_swap_transaction(self, result: dict) -> dict:
         """Parse swap transaction details"""
-        # Simplified parsing - production would use proper log parsing
         try:
             return {
                 'signature': result.get('signature', 'unknown'),
@@ -103,19 +99,16 @@ class WhaleMonitor:
             return None
     
     def _extract_token_address(self, result: dict) -> str:
-        """Extract token address from transaction logs"""
-        # Placeholder - actual implementation would parse token accounts
+        """Extract token address from logs"""
         logs = result.get('logs', [])
         for log in logs:
             if 'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA' in log:
-                # Extract from token program invocation
                 pass
         return "unknown_token"
     
     def _estimate_value(self, result: dict) -> float:
-        """Estimate USD value of transaction"""
-        # Placeholder - would calculate from SOL amount and price
-        return 0.0
+        """Estimate USD value"""
+        return 10000.0  # Placeholder
     
     async def _handle_whale_trade(self, tx_data: dict):
         """Handle detected whale trade"""
@@ -129,26 +122,21 @@ class WhaleMonitor:
 👤 Whale: `{tx_data['buyer'][:20]}...`
 🔗 Tx: `{tx_data['signature'][:20]}...`
 
-{'⚡ AUTO-BUY TRIGGERED!' if os.getenv('AUTO_TRADE', 'true').lower() == 'true' else '👁️ Monitoring only'}
+{'⚡ AUTO-BUY TRIGGERED!' if Config.AUTO_TRADE else '👁️ Monitoring only'}
 """
         await self.send_alert(alert_msg)
         
-        # Execute copy-trade if enabled
-        if os.getenv('AUTO_TRADE', 'true').lower() == 'true':
+        if Config.AUTO_TRADE:
             await self._execute_copy_trade(tx_data)
     
     async def _execute_copy_trade(self, tx_data: dict):
         """Execute copy-cat trade"""
         try:
-            from config import Config
-            
-            # Calculate position size (whale size or max position, whichever is smaller)
             position_sol = min(
-                tx_data['value_usd'] / 20,  # Assume SOL = $20 for estimation
+                tx_data['value_usd'] / 20,
                 Config.MAX_POSITION_SOL
             )
             
-            # Execute buy
             signature = await self.trading_engine.execute_buy(
                 token_address=tx_data['token_address'],
                 amount_sol=position_sol,

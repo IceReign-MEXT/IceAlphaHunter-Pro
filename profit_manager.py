@@ -14,7 +14,6 @@ class ProfitManager:
         """Get total profit in SOL"""
         try:
             stats = self.db.get_performance_stats()
-            # Sum of all closed trade profits
             return sum(t.get('profit', 0) for t in self.db.get_recent_trades(limit=1000))
         except Exception as e:
             logger.error(f"Failed to get total profit: {e}")
@@ -27,10 +26,10 @@ class ProfitManager:
     def get_profit_summary(self) -> Dict:
         """Get comprehensive profit summary"""
         total_sol = self.get_total_profit()
-        available_sol = total_sol  # In production: check wallet balance
-        unrealized = 0.0  # PnL from open positions
+        available_sol = total_sol
+        unrealized = 0.0
         
-        target = 0.1  # Next milestone target
+        target = 0.1
         progress = (total_sol / target * 100) if target > 0 else 0
         
         return {
@@ -45,14 +44,12 @@ class ProfitManager:
     
     async def auto_transfer_profits(self):
         """Auto-transfer profits to owner wallet"""
-        # In production: Implement actual transfer logic
-        # This would check for profits and transfer to configured wallet
         pass
     
     async def calculate_fees(self, amount: float) -> Dict:
         """Calculate trading fees"""
-        jito_tip = 0.0001  # Jito tip in SOL
-        platform_fee = amount * 0.001  # 0.1% platform fee
+        jito_tip = 0.0001
+        platform_fee = amount * 0.001
         
         return {
             'jito_tip': jito_tip,

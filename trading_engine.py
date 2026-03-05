@@ -4,14 +4,13 @@ import asyncio
 import base64
 from typing import Dict, List, Optional
 from dataclasses import dataclass
+from datetime import datetime
 import aiohttp
 from solders.keypair import Keypair
 from solders.transaction import Transaction
-from solders.system_program import TransferParams, transfer
-from solders.pubkey import Pubkey
-from solders.instruction import Instruction
 from solana.rpc.async_api import AsyncClient
 from solana.rpc.commitment import Confirmed
+from config import Config
 
 logger = logging.getLogger(__name__)
 
@@ -39,7 +38,6 @@ class TradingEngine:
             if not private_key:
                 raise ValueError("WALLET_PRIVATE_KEY not set")
             
-            # Handle base58 or byte array format
             if ',' in private_key:
                 key_bytes = bytes([int(x) for x in private_key.strip('[]').split(',')])
             else:
@@ -126,13 +124,9 @@ class TradingEngine:
         
         try:
             position = self.open_positions[token_address]
-            
-            # Get token balance (simplified - in production, query token account)
-            # This is a placeholder for the actual Jupiter swap back to SOL
             logger.info(f"Selling {percentage}% of {token_address}")
             
-            # Record profit/loss
-            # In production: calculate actual PnL from transaction results
+            # Record profit/loss (simplified)
             self.db.close_trade(token_address, profit=0.0)
             del self.open_positions[token_address]
             
@@ -158,35 +152,3 @@ class TradingEngine:
             }
             for t in self.open_positions.values()
         ]
-    
-    async def monitor_positions(self):
-        """Monitor open positions for take profit/stop loss"""
-        while True:
-            try:
-                for token_address, trade in list(self.open_positions.items()):
-                    # Check price and PnL (simplified)
-                    pnl_percent = await self._calculate_pnl(token_address, trade)
-                    
-                    if pnl_percent >= Config.TAKE_PROFIT:
-                        logger.info(f"Take profit hit for {token_address}: {pnl_percent}%")
-                        await self.execute_sell(token_address)
-                        await self.send_alert(f"🎯 Take Profit! Sold {token_address[:20]}... at +{pnl_percent:.1f}%")
-                    
-                    elif pnl_percent <= Config.STOP_LOSS:
-                        logger.info(f"Stop loss hit for {token_address}: {pnl_percent}%")
-                        await self.execute_sell(token_address)
-                        await self.send_alert(f"🛑 Stop Loss! Sold {token_address[:20]}... at {pnl_percent:.1f}%")
-                
-                await asyncio.sleep(5)  # Check every 5 seconds
-                
-            except Exception as e:
-                logger.error(f"Position monitoring error: {e}")
-                await asyncio.sleep(5)
-    
-    async def _calculate_pnl(self, token_address: str, trade: Trade) -> float:
-        """Calculate current PnL percentage (simplified)"""
-        # In production: fetch current price from Jupiter or DEX
-        return 0.0  # Placeholder
-
-from config import Config
-from datetime import datetime

@@ -1,33 +1,41 @@
 services:
   - type: web
-    name: icealpha-hunter
+    name: icealphahunter-pro
     runtime: docker
-    plan: starter
-    dockerfilePath: ./Dockerfile
+    plan: standard
     envVars:
-      - key: BOT_TOKEN
+      - key: PYTHON_VERSION
+        value: 3.11.0
+      - key: TELEGRAM_BOT_TOKEN
         sync: false
-      - key: HELIUS_API_KEY
+      - key: TELEGRAM_CHAT_ID
+        sync: false
+      - key: TELEGRAM_CHANNEL_ID
         sync: false
       - key: HELIUS_RPC_URL
         sync: false
+      - key: HELIUS_API_KEY
+        sync: false
       - key: WALLET_PRIVATE_KEY
         sync: false
-      - key: WALLET_PUBLIC_KEY
+      - key: WALLET_ADDRESS
         sync: false
-      - key: CHANNEL_ID
+      - key: SUPABASE_URL
         sync: false
-      - key: ADMIN_ID
+      - key: SUPABASE_KEY
         sync: false
-      - key: MIN_WHALE_AMOUNT_USD
-        value: 5000
+      - key: RUGCHECK_API_KEY
+        sync: false
+      - key: AUTO_TRADE
+        value: "true"
+      - key: MIN_WHALE_SIZE
+        value: "5000"
       - key: MAX_POSITION_SOL
-        value: 1.0
-      - key: SLIPPAGE_BPS
-        value: 100
-      - key: AUTO_TRADE_ENABLED
-        value: false
-      - key: DATABASE_URL
-        sync: false
-      - key: PORT
-        value: 10000
+        value: "10.0"
+      - key: SLIPPAGE
+        value: "1.0"
+      - key: TAKE_PROFIT
+        value: "20.0"
+      - key: STOP_LOSS
+        value: "-10.0"
+    autoDeploy: true
