@@ -1,12 +1,20 @@
 #!/usr/bin/env python3
-"""IceAlpha Hunter Pro - Sync Version (No Pydantic)"""
-import os
+"""IceAlpha Hunter Pro - With imghdr shim"""
 import sys
-import logging
-from dotenv import load_dotenv
+import os
 
+# Add imghdr shim BEFORE anything else (Python 3.13+ compatibility)
+if 'imghdr' not in sys.modules:
+    import types
+    imghdr = types.ModuleType('imghdr')
+    imghdr.what = lambda file, h=None: None
+    sys.modules['imghdr'] = imghdr
+
+# Now load dotenv
+from dotenv import load_dotenv
 load_dotenv()
 
+import logging
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',

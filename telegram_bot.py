@@ -1,14 +1,18 @@
-"""Telegram Bot - python-telegram-bot v13 (Sync)"""
-import os
+"""Telegram Bot - python-telegram-bot v13"""
 import sys
+import os
 import time
 import threading
 import logging
-from typing import Dict, Any
 
-logger = logging.getLogger(__name__)
+# FIX: Add imghdr shim for Python 3.13+
+if 'imghdr' not in sys.modules:
+    import types
+    imghdr = types.ModuleType('imghdr')
+    imghdr.what = lambda file, h=None: None
+    sys.modules['imghdr'] = imghdr
 
-# Try to import telegram
+# Now import telegram
 try:
     from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, Bot
     from telegram.ext import (
@@ -16,8 +20,10 @@ try:
         CallbackContext, MessageHandler, Filters
     )
 except ImportError as e:
-    logger.error(f"Failed to import telegram: {e}")
+    logging.error(f"Failed to import telegram: {e}")
     sys.exit(1)
+
+logger = logging.getLogger(__name__)
 
 class TelegramBot:
     def __init__(self):
@@ -250,10 +256,7 @@ Auto-Trade: {'✅ ON' if config.AUTO_TRADE_ENABLED else '❌ OFF'}
         
         for trade in trades:
             try:
-                # Use threading to run async sell
-                import threading
                 import asyncio
-                
                 result = asyncio.run(self.trading_engine.sell_token(
                     trade.get('token_mint', ''),
                     trade.get('amount', 0)
@@ -318,7 +321,6 @@ Auto-Trade: {'✅ ON' if config.AUTO_TRADE_ENABLED else '❌ OFF'}
     def _handle_whale_sync(self, whale):
         """Handle whale (sync wrapper)"""
         import asyncio
-        
         try:
             asyncio.run(self._handle_whale_async(whale))
         except Exception as e:
@@ -414,7 +416,6 @@ Whale Buy: ${whale.amount_usd:,.2f}
         self.is_running = True
         
         # Start whale monitor in thread
-        import threading
         whale_thread = threading.Thread(target=self.whale_monitor.start_monitoring_sync, daemon=True)
         whale_thread.start()
         
