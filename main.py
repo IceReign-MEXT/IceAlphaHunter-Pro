@@ -1,15 +1,12 @@
 #!/usr/bin/env python3
-"""IceAlpha Hunter Pro - With health endpoint"""
+"""IceAlpha Hunter Pro - Background Worker"""
 import os
 import sys
-import threading
-from flask import Flask
 from dotenv import load_dotenv
 
 load_dotenv()
 
 import logging
-
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -17,28 +14,8 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Create Flask app for health checks (keeps Render happy)
-app = Flask(__name__)
-
-@app.route('/')
-def health():
-    return {
-        "status": "running",
-        "bot": "IceAlpha Hunter Pro",
-        "version": "1.0"
-    }, 200
-
-@app.route('/health')
-def health_check():
-    return {"status": "healthy"}, 200
-
-def run_flask():
-    """Run Flask in background thread"""
-    port = int(os.getenv('PORT', 10000))
-    app.run(host='0.0.0.0', port=port, threaded=True)
-
 def main():
-    logger.info("🚀 Starting IceAlpha Hunter Pro...")
+    logger.info("🚀 Starting IceAlpha Hunter Pro (Background Worker)...")
     
     from config import config
     
@@ -48,14 +25,8 @@ def main():
     
     logger.info(f"💰 Auto-trade: {config.AUTO_TRADE_ENABLED}")
     logger.info(f"🎯 Min whale: ${config.MIN_WHALE_AMOUNT_USD}")
-    logger.info(f"🌐 Health endpoint: http://0.0.0.0:{config.PORT}/health")
+    logger.info(f"💾 Database: {'PostgreSQL' if config.DATABASE_URL else 'SQLite'}")
     
-    # Start Flask for health checks
-    flask_thread = threading.Thread(target=run_flask, daemon=True)
-    flask_thread.start()
-    logger.info("✅ Health endpoint started")
-    
-    # Start Telegram bot
     from telegram_bot import TelegramBot
     bot = TelegramBot()
     

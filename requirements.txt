@@ -1,4 +1,3 @@
-# Core async - Latest for Python 3.14 compatibility
 aiohttp==3.9.5
 aiosignal==1.3.1
 async-timeout==4.0.3
@@ -6,31 +5,17 @@ attrs==23.2.0
 frozenlist==1.4.1
 multidict==6.0.5
 yarl==1.9.4
-
-# Telegram - Use older stable version
 python-telegram-bot==13.15
-
-# HTTP - Pin to working versions
 httpx==0.24.1
 httpcore==0.17.3
 anyio==3.7.1
 h11==0.14.0
 sniffio==1.3.0
-
-# HTTP requests
 requests==2.31.0
 urllib3==2.1.0
 certifi==2023.11.17
 charset-normalizer==3.3.2
-
-# Environment
 python-dotenv==1.0.0
-
-# No pydantic - use dataclasses instead
-# No solders - pure Python only
-Flask==3.0.0
-Werkzeug==3.0.1
-click==8.1.7
-itsdangerous==2.1.2
-Jinja2==3.1.2
-MarkupSafe==2.1.3
+pydantic==1.10.13
+jsonschema==4.20.0
+typing-extensions==4.9.0
