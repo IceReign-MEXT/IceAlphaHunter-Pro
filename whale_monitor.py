@@ -1,8 +1,8 @@
-"""Helius WebSocket Whale Transaction Monitor"""
+"""Helius WebSocket Whale Monitor"""
 import asyncio
 import aiohttp
 import json
-from typing import Callable, Dict, Any, Optional
+from typing import Callable, List, Dict, Any, Optional
 from dataclasses import dataclass
 from datetime import datetime
 from config import config
@@ -15,7 +15,7 @@ class WhaleTrade:
     token_symbol: str
     amount_usd: float
     amount_tokens: float
-    transaction_type: str  # 'buy' or 'sell'
+    transaction_type: str
     timestamp: datetime
     raw_data: Dict
 
@@ -26,14 +26,14 @@ class WhaleMonitor:
         self.callbacks: List[Callable[[WhaleTrade], None]] = []
         self.min_amount_usd = config.MIN_WHALE_AMOUNT_USD
         self.running = False
-        self.known_tokens: Dict[str, str] = {}  # mint -> symbol cache
+        self.known_tokens: Dict[str, str] = {}
         
     def on_whale_detected(self, callback: Callable[[WhaleTrade], None]):
-        """Register callback for whale detection"""
+        """Register callback"""
         self.callbacks.append(callback)
     
     async def _fetch_token_symbol(self, mint: str) -> str:
-        """Fetch token metadata from Helius"""
+        """Fetch token metadata"""
         if mint in self.known_tokens:
             return self.known_tokens[mint]
         
@@ -58,13 +58,12 @@ class WhaleMonitor:
         return "UNKNOWN"
     
     async def _parse_transaction(self, tx_data: Dict) -> Optional[WhaleTrade]:
-        """Parse Helius transaction for whale activity"""
+        """Parse transaction for whale activity"""
         try:
             signature = tx_data.get('signature', '')
             account_data = tx_data.get('accountData', [])
             token_changes = []
             
-            # Look for token balance changes
             for account in account_data:
                 if account.get('tokenBalanceChanges'):
                     for change in account['tokenBalanceChanges']:
@@ -72,15 +71,10 @@ class WhaleMonitor:
                         raw_amount = abs(float(change.get('rawTokenAmount', {}).get('tokenAmount', 0)))
                         decimals = int(change.get('rawTokenAmount', {}).get('decimals', 9))
                         
-                        # Skip SOL (wrapped SOL handled separately)
                         if mint == 'So11111111111111111111111111111111111111112':
                             continue
                         
                         amount_tokens = raw_amount / (10 ** decimals)
-                        
-                        # Calculate USD value (approximate using SOL price if needed)
-                        # For now, use raw amount as proxy
-                        # In production, fetch real price from Jupiter or Birdeye
                         
                         token_changes.append({
                             'mint': mint,
@@ -91,24 +85,18 @@ class WhaleMonitor:
             if not token_changes:
                 return None
             
-            # Find largest token change (the main trade)
             main_change = max(token_changes, key=lambda x: x['amount'])
-            
-            # Estimate USD value (placeholder - integrate price oracle)
-            # In production: fetch real-time price from Jupiter/Birdeye
-            estimated_usd = main_change['amount'] * 0.01  # Placeholder price
+            estimated_usd = main_change['amount'] * 0.01
             
             if estimated_usd < self.min_amount_usd:
                 return None
             
-            # Determine buy/sell by checking native balance change
             native_changes = tx_data.get('nativeBalanceChanges', [])
             is_buy = False
             
             for change in native_changes:
                 if change.get('account') == main_change['owner']:
-                    # If SOL decreased significantly, likely a buy
-                    if float(change.get('amount', 0)) < -0.05:  # 0.05 SOL threshold
+                    if float(change.get('amount', 0)) < -0.05:
                         is_buy = True
                         break
             
@@ -131,7 +119,7 @@ class WhaleMonitor:
             return None
     
     async def start_monitoring(self):
-        """Start WebSocket connection to Helius"""
+        """Start WebSocket connection"""
         self.running = True
         
         while self.running:
@@ -140,13 +128,12 @@ class WhaleMonitor:
                     async with session.ws_connect(self.helius_ws_url) as ws:
                         print("🔗 Connected to Helius WebSocket")
                         
-                        # Subscribe to transactions
                         subscribe_msg = {
                             "jsonrpc": "2.0",
                             "id": 1,
                             "method": "transactionSubscribe",
                             "params": [
-                                {"mentionsAccountOrProgram": "*"},  # All transactions
+                                {"mentionsAccountOrProgram": "*"},
                                 {
                                     "commitment": "confirmed",
                                     "encoding": "jsonParsed",
@@ -163,22 +150,19 @@ class WhaleMonitor:
                             if msg.type == aiohttp.WSMsgType.TEXT:
                                 data = json.loads(msg.data)
                                 
-                                # Handle subscription confirmation
                                 if 'result' in data:
                                     print(f"✅ Subscription confirmed: {data['result']}")
                                     continue
                                 
-                                # Handle transaction
                                 if 'params' in data and 'result' in data['params']:
                                     tx_data = data['params']['result']
                                     whale_trade = await self._parse_transaction(tx_data)
                                     
                                     if whale_trade:
-                                        print(f"🐋 WHALE DETECTED: {whale_trade.token_symbol} "
+                                        print(f"🐋 WHALE: {whale_trade.token_symbol} "
                                               f"${whale_trade.amount_usd:,.2f} "
                                               f"({whale_trade.transaction_type.upper()})")
                                         
-                                        # Notify all callbacks
                                         for callback in self.callbacks:
                                             try:
                                                 await callback(whale_trade)
@@ -195,7 +179,7 @@ class WhaleMonitor:
                                 
             except Exception as e:
                 print(f"Monitor error: {e}")
-                await asyncio.sleep(5)  # Reconnect delay
+                await asyncio.sleep(5)
     
     def stop(self):
         """Stop monitoring"""

@@ -1,44 +1,45 @@
 #!/usr/bin/env python3
-"""IceAlpha Hunter Pro - MEV Whale Sniper Bot"""
+"""IceAlpha Hunter Pro"""
+import os
+import sys
+
+# Ensure .env is loaded first
+from dotenv import load_dotenv
+load_dotenv()
+
 import asyncio
 import logging
-import sys
-from telegram_bot import TelegramBot
-from config import config
 
-# Setup logging
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.StreamHandler(sys.stdout)
-    ]
+    handlers=[logging.StreamHandler(sys.stdout)]
 )
 logger = logging.getLogger(__name__)
 
 async def main():
-    """Main entry point"""
     logger.info("🚀 Starting IceAlpha Hunter Pro...")
     
-    # Validate configuration
+    from config import config
+    
     if not config.is_configured:
-        logger.error("❌ Missing critical configuration. Check .env file.")
-        logger.error("Required: BOT_TOKEN, HELIUS_API_KEY, WALLET_PRIVATE_KEY, DATABASE_URL")
+        logger.error("❌ Missing config")
+        logger.error("Need: BOT_TOKEN, HELIUS_API_KEY, WALLET_PUBLIC_KEY")
         sys.exit(1)
     
-    logger.info("✅ Configuration validated")
-    logger.info(f"💰 Auto-trading: {'ENABLED' if config.AUTO_TRADE_ENABLED else 'DISABLED'}")
-    logger.info(f"🎯 Min whale size: ${config.MIN_WHALE_AMOUNT_USD:,.0f}")
+    logger.info(f"💰 Auto-trade: {config.AUTO_TRADE_ENABLED}")
+    logger.info(f"🎯 Min whale: ${config.MIN_WHALE_AMOUNT_USD}")
+    logger.info(f"💾 Database: {'PostgreSQL' if config.DATABASE_URL else 'SQLite'}")
     
-    # Initialize and run bot
+    from telegram_bot import TelegramBot
     bot = TelegramBot()
     
     try:
         await bot.run()
     except KeyboardInterrupt:
-        logger.info("🛑 Shutdown requested")
+        logger.info("🛑 Shutdown")
     except Exception as e:
-        logger.error(f"Fatal error: {e}")
+        logger.error(f"Fatal: {e}")
         raise
 
 if __name__ == "__main__":

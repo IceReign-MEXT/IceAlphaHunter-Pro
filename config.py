@@ -1,46 +1,33 @@
-"""Centralized configuration management"""
+"""Configuration"""
 import os
-from dataclasses import dataclass
-from typing import Optional
+from dotenv import load_dotenv
 
-@dataclass
+# Load .env immediately
+load_dotenv()
+
 class Config:
-    # Telegram
-    BOT_TOKEN: str = os.getenv("BOT_TOKEN", "")
-    ADMIN_ID: int = int(os.getenv("ADMIN_ID", "0"))
-    CHANNEL_ID: str = os.getenv("CHANNEL_ID", "")
+    BOT_TOKEN = os.getenv("BOT_TOKEN", "")
+    ADMIN_ID = int(os.getenv("ADMIN_ID", "0"))
+    CHANNEL_ID = os.getenv("CHANNEL_ID", "")
     
-    # Solana
-    HELIUS_API_KEY: str = os.getenv("HELIUS_API_KEY", "")
-    HELIUS_RPC_URL: str = os.getenv("HELIUS_RPC_URL", "")
-    WALLET_PRIVATE_KEY: str = os.getenv("WALLET_PRIVATE_KEY", "")
-    WALLET_PUBLIC_KEY: str = os.getenv("WALLET_PUBLIC_KEY", "")
+    HELIUS_API_KEY = os.getenv("HELIUS_API_KEY", "")
+    HELIUS_RPC_URL = os.getenv("HELIUS_RPC_URL", "")
+    WALLET_PRIVATE_KEY = os.getenv("WALLET_PRIVATE_KEY", "")
+    WALLET_PUBLIC_KEY = os.getenv("WALLET_PUBLIC_KEY", "")
     
-    # Supabase
-    DATABASE_URL: str = os.getenv("DATABASE_URL", "")
-    SUPABASE_URL: str = os.getenv("SUPABASE_URL", "")
-    SUPABASE_KEY: str = os.getenv("SUPABASE_KEY", "")
+    DATABASE_URL = os.getenv("DATABASE_URL", "")
     
-    # Trading
-    MIN_WHALE_AMOUNT_USD: float = float(os.getenv("MIN_WHALE_AMOUNT_USD", "5000"))
-    MAX_POSITION_SOL: float = float(os.getenv("MAX_POSITION_SOL", "10"))
-    SLIPPAGE_BPS: int = int(os.getenv("SLIPPAGE_BPS", "100"))
-    JITO_TIP_LAMPORTS: int = int(os.getenv("JITO_TIP_LAMPORTS", "10000"))
-    AUTO_TRADE_ENABLED: bool = os.getenv("AUTO_TRADE_ENABLED", "false").lower() == "true"
-    PORT: int = int(os.getenv("PORT", "10000"))
+    MIN_WHALE_AMOUNT_USD = float(os.getenv("MIN_WHALE_AMOUNT_USD", "1000"))
+    MAX_POSITION_SOL = float(os.getenv("MAX_POSITION_SOL", "1.0"))
+    SLIPPAGE_BPS = int(os.getenv("SLIPPAGE_BPS", "100"))
+    AUTO_TRADE_ENABLED = os.getenv("AUTO_TRADE_ENABLED", "false").lower() == "true"
+    PORT = int(os.getenv("PORT", "10000"))
     
-    # Jupiter
-    JUPITER_QUOTE_API: str = "https://quote-api.jup.ag/v6"
-    JUPITER_SWAP_API: str = "https://quote-api.jup.ag/v6/swap"
+    JUPITER_QUOTE_API = "https://quote-api.jup.ag/v6"
+    JUPITER_SWAP_API = "https://quote-api.jup.ag/v6/swap"
     
     @property
-    def is_configured(self) -> bool:
-        """Check if critical config is present"""
-        return all([
-            self.BOT_TOKEN,
-            self.HELIUS_API_KEY,
-            self.WALLET_PRIVATE_KEY,
-            self.DATABASE_URL
-        ])
+    def is_configured(self):
+        return all([self.BOT_TOKEN, self.HELIUS_API_KEY, self.WALLET_PUBLIC_KEY])
 
 config = Config()
