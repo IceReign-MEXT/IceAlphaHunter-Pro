@@ -1,6 +1,6 @@
 services:
-  - type: worker
-    name: icealpha-hunter-bot
+  - type: web
+    name: icealpha-hunter
     runtime: docker
     plan: starter
     dockerfilePath: ./Dockerfile
@@ -29,3 +29,5 @@ services:
         value: false
       - key: DATABASE_URL
         sync: false
+      - key: PORT
+        value: 10000
