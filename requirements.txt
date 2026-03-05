@@ -1,5 +1,5 @@
-python-telegram-bot==20.6
-httpx==0.24.1
+python-telegram-bot==20.4
+httpx==0.24.0
 httpcore==0.17.3
 solana==0.30.2
 solders==0.20.0
