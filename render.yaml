@@ -1,0 +1,32 @@
+services:
+  - type: web
+    name: icealpha-hunter
+    runtime: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: python main.py
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.0
+      - key: DATABASE_URL
+        fromDatabase:
+          name: icealpha-db
+          property: connectionString
+      - key: BOT_TOKEN
+        sync: false
+      - key: HELIUS_API_KEY
+        sync: false
+      - key: WALLET_PRIVATE_KEY
+        sync: false
+      - key: WALLET_PUBLIC_KEY
+        sync: false
+      - key: CHANNEL_ID
+        sync: false
+      - key: ADMIN_ID
+        sync: false
+      - key: AUTO_TRADE_ENABLED
+        value: false
+
+databases:
+  - name: icealpha-db
+    databaseName: icealpha
+    user: icealpha
