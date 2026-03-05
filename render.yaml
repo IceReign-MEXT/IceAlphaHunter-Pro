@@ -3,6 +3,7 @@ services:
     name: icealpha-hunter-bot
     runtime: docker
     plan: starter
+    dockerfilePath: ./Dockerfile
     envVars:
       - key: BOT_TOKEN
         sync: false
