@@ -1,5 +1,11 @@
-# Python 3.11 wheels - NO compilation required
+# Core system
+setuptools==69.0.2
+wheel==0.42.0
+
+# Telegram
 python-telegram-bot==13.7
+
+# HTTP
 requests==2.31.0
 urllib3==2.1.0
 certifi==2023.11.17
@@ -14,9 +20,6 @@ attrs==23.2.0
 frozenlist==1.4.1
 multidict==6.0.4
 yarl==1.9.4
-
-# Database - Use SQLite (built-in) to avoid psycopg2 build issues
-# psycopg2-binary==2.9.9  # Uncomment if you need PostgreSQL
 
 # Environment
 python-dotenv==1.0.0
