@@ -1,7 +1,5 @@
-import asyncio
-import json
-import os
 import aiohttp
+import os
 from datetime import datetime
 from dotenv import load_dotenv
 
@@ -9,77 +7,75 @@ load_dotenv()
 
 class WhaleMonitor:
     def __init__(self):
-        self.helius_key = os.getenv("HELIUS_API_KEY", "1b0094c2-50b9-4c97-a2d6-2c47d4ac2789")
-        self.rpc_url = f"https://mainnet.helius-rpc.com/?api-key={self.helius_key}"
-        self.bot_token = os.getenv("BOT_TOKEN")
-        self.channel_id = os.getenv("CHANNEL_ID", "-1003844332949")
-        self.min_sol_amount = 5
+        self.helius_key = os.getenv("HELIUS_API_KEY")
+        self.min_amount = 10  # Minimum SOL to alert
+        self.last_check = None
         
-    async def fetch_whale_transactions(self):
-        """Fetch recent large transactions from Helius"""
+    async def get_real_whales(self):
+        """Fetch real whale transactions from Helius"""
+        if not self.helius_key:
+            return []
+            
         url = f"https://api.helius.xyz/v0/addresses/?api-key={self.helius_key}"
         
-        async with aiohttp.ClientSession() as session:
-            try:
-                payload = {
-                    "query": {
-                        "types": ["TRANSFER", "SWAP"],
-                        "minAmount": self.min_sol_amount * 1e9
-                    },
-                    "options": {"limit": 10}
-                }
-                
-                async with session.post(url, json=payload) as resp:
-                    if resp.status == 200:
-                        data = await resp.json()
-                        return self.process_transactions(data.get('transactions', []))
-            except Exception as e:
-                print(f"Error fetching: {e}")
-                return []
-    
-    def process_transactions(self, transactions):
-        """Filter and format whale moves"""
-        signals = []
-        for tx in transactions:
-            amount = float(tx.get('amount', 0)) / 1e9
-            
-            if amount >= self.min_sol_amount:
-                signal = {
-                    "type": "WHALE_BUY",
-                    "whale": tx.get('from', 'Unknown')[:8] + "...",
-                    "token": tx.get('token', 'SOL'),
-                    "amount": round(amount, 2),
-                    "tx_hash": tx.get('signature', ''),
-                    "timestamp": datetime.now().isoformat()
-                }
-                signals.append(signal)
-        return signals
-    
-    async def send_alert(self, signal):
-        """Send to Telegram"""
-        message = (
-            f"🎯 <b>WHALE ALERT</b>\n"
-            f"━━━━━━━━━━━━━━━━━━\n"
-            f"🐋 <b>Whale:</b> <code>{signal['whale']}</code>\n"
-            f"💎 <b>Token:</b> <b>{signal['token']}</b>\n"
-            f"💰 <b>Amount:</b> <code>{signal['amount']} SOL</code>\n"
-            f"⏰ <b>Time:</b> {signal['timestamp'][:19]}\n"
-            f"━━━━━━━━━━━━━━━━━━\n"
-            f"🔗 <a href='https://solscan.io/tx/{signal['tx_hash']}'>View Tx</a>"
-        )
-        
-        telegram_url = f"https://api.telegram.org/bot{self.bot_token}/sendMessage"
+        # This requires paid Helius plan for real-time data
         payload = {
-            "chat_id": self.channel_id,
-            "text": message,
-            "parse_mode": "HTML",
-            "disable_web_page_preview": True
+            "query": {
+                "types": ["TRANSFER", "SWAP"],
+                "minAmount": self.min_amount * 1e9
+            },
+            "options": {"limit": 5}
         }
         
-        async with aiohttp.ClientSession() as session:
-            async with session.post(telegram_url, json=payload) as resp:
-                return resp.status == 200
-
-if __name__ == "__main__":
-    monitor = WhaleMonitor()
-    asyncio.run(monitor.fetch_whale_transactions())
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.post(url, json=payload, timeout=10) as resp:
+                    if resp.status == 200:
+                        data = await resp.json()
+                        return self.parse_real_data(data)
+                    elif resp.status == 429:
+                        print("⚠️ Helius rate limit - need paid plan")
+                        return []
+                    else:
+                        print(f"Helius error: {resp.status}")
+                        return []
+        except Exception as e:
+            print(f"Monitor error: {e}")
+            return []
+    
+    def parse_real_data(self, data):
+        """Parse Helius response into signals"""
+        signals = []
+        txs = data.get('transactions', [])
+        
+        for tx in txs:
+            try:
+                amount = float(tx.get('amount', 0)) / 1e9
+                if amount >= self.min_amount:
+                    signal = {
+                        'type': 'WHALE_BUY',
+                        'whale': tx.get('from', 'Unknown')[:8] + "...",
+                        'token': tx.get('token', 'SOL'),
+                        'amount': round(amount, 2),
+                        'tx_hash': tx.get('signature', '')[:16],
+                        'timestamp': datetime.now().strftime('%H:%M:%S'),
+                        'real_data': True
+                    }
+                    signals.append(signal)
+            except Exception as e:
+                continue
+                
+        return signals
+    
+    async def get_demo_signal(self):
+        """Demo signal when no real data available"""
+        return {
+            'type': 'DEMO_ALERT',
+            'whale': '4ACfp...7NhDEE',
+            'token': 'DEMO-TOKEN',
+            'amount': 450.0,
+            'tx_hash': 'demo123',
+            'timestamp': datetime.now().strftime('%H:%M:%S'),
+            'real_data': False,
+            'warning': '⚠️ DEMO MODE - Connect paid Helius for real alerts'
+        }
