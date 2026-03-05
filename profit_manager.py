@@ -1,55 +1,61 @@
-"""Automatic profit management"""
+import os
 import logging
 from typing import Dict
 
 logger = logging.getLogger(__name__)
 
 class ProfitManager:
-    def __init__(self, wallet_address: str):
-        self.wallet_address = wallet_address
-        self.total_profit_sol = 0.0
-        self.total_profit_usd = 0.0
-        self.trade_count = 0
-        
-    def record_trade(self, entry_sol: float, exit_sol: float, token_symbol: str) -> Dict:
-        profit_sol = exit_sol - entry_sol
-        profit_usd = profit_sol * 20
-        
-        self.total_profit_sol += profit_sol
-        self.total_profit_usd += profit_usd
-        self.trade_count += 1
-        
-        result = {
-            'token': token_symbol,
-            'entry': entry_sol,
-            'exit': exit_sol,
-            'profit_sol': profit_sol,
-            'profit_usd': profit_usd,
-            'wallet': self.wallet_address,
-            'transferred': True
-        }
-        
-        logger.info(f"💰 Profit: {profit_sol:+.4f} SOL for {token_symbol}")
-        return result
+    def __init__(self, database):
+        self.db = database
+        self.wallet_address = os.getenv('WALLET_ADDRESS', 'Not configured')
+        self.sol_price = 20.0  # Placeholder - should fetch real price
     
-    def get_summary(self) -> Dict:
+    def get_total_profit(self) -> float:
+        """Get total profit in SOL"""
+        try:
+            stats = self.db.get_performance_stats()
+            # Sum of all closed trade profits
+            return sum(t.get('profit', 0) for t in self.db.get_recent_trades(limit=1000))
+        except Exception as e:
+            logger.error(f"Failed to get total profit: {e}")
+            return 0.0
+    
+    def get_total_profit_usd(self) -> float:
+        """Get total profit in USD"""
+        return self.get_total_profit() * self.sol_price
+    
+    def get_profit_summary(self) -> Dict:
+        """Get comprehensive profit summary"""
+        total_sol = self.get_total_profit()
+        available_sol = total_sol  # In production: check wallet balance
+        unrealized = 0.0  # PnL from open positions
+        
+        target = 0.1  # Next milestone target
+        progress = (total_sol / target * 100) if target > 0 else 0
+        
         return {
-            'total_trades': self.trade_count,
-            'total_sol': self.total_profit_sol,
-            'total_usd': self.total_profit_usd,
-            'avg_profit': self.total_profit_sol / max(self.trade_count, 1),
-            'wallet': self.wallet_address
+            'available_sol': available_sol,
+            'available_usd': available_sol * self.sol_price,
+            'unrealized_sol': unrealized,
+            'total_sol': total_sol,
+            'current': total_sol,
+            'target': target,
+            'progress': min(progress, 100)
         }
     
-    def get_milestone_progress(self) -> str:
-        milestones = [0.1, 0.5, 1.0, 5.0, 10.0, 50.0, 100.0]
-        current = abs(self.total_profit_sol)
+    async def auto_transfer_profits(self):
+        """Auto-transfer profits to owner wallet"""
+        # In production: Implement actual transfer logic
+        # This would check for profits and transfer to configured wallet
+        pass
+    
+    async def calculate_fees(self, amount: float) -> Dict:
+        """Calculate trading fees"""
+        jito_tip = 0.0001  # Jito tip in SOL
+        platform_fee = amount * 0.001  # 0.1% platform fee
         
-        for m in milestones:
-            if current < m:
-                pct = (current / m) * 100
-                filled = int(pct / 5)
-                bar = '█' * filled + '░' * (20 - filled)
-                return f"[{bar}] {current:.2f}/{m:.2f} SOL ({pct:.1f}%)"
-        
-        return f"[{'█' * 20}] {current:.2f} SOL (Max tier! 🎉)"
+        return {
+            'jito_tip': jito_tip,
+            'platform_fee': platform_fee,
+            'total': jito_tip + platform_fee
+        }

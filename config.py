@@ -1,33 +1,46 @@
-"""Configuration"""
 import os
 from dotenv import load_dotenv
 
-# Load .env immediately
 load_dotenv()
 
 class Config:
-    BOT_TOKEN = os.getenv("BOT_TOKEN", "")
-    ADMIN_ID = int(os.getenv("ADMIN_ID", "0"))
-    CHANNEL_ID = os.getenv("CHANNEL_ID", "")
+    """Bot configuration"""
     
-    HELIUS_API_KEY = os.getenv("HELIUS_API_KEY", "")
-    HELIUS_RPC_URL = os.getenv("HELIUS_RPC_URL", "")
-    WALLET_PRIVATE_KEY = os.getenv("WALLET_PRIVATE_KEY", "")
-    WALLET_PUBLIC_KEY = os.getenv("WALLET_PUBLIC_KEY", "")
+    # Trading Parameters
+    MIN_WHALE_SIZE = int(os.getenv('MIN_WHALE_SIZE', '5000'))
+    MAX_POSITION_SOL = float(os.getenv('MAX_POSITION_SOL', '10.0'))
+    SLIPPAGE = float(os.getenv('SLIPPAGE', '1.0'))
+    TAKE_PROFIT = float(os.getenv('TAKE_PROFIT', '20.0'))
+    STOP_LOSS = float(os.getenv('STOP_LOSS', '-10.0'))
+    AUTO_TRADE = os.getenv('AUTO_TRADE', 'true').lower() == 'true'
     
-    DATABASE_URL = os.getenv("DATABASE_URL", "")
+    # API Keys
+    HELIUS_API_KEY = os.getenv('HELIUS_API_KEY')
+    HELIUS_RPC_URL = os.getenv('HELIUS_RPC_URL')
+    JUPITER_API_URL = os.getenv('JUPITER_API_URL', 'https://quote-api.jup.ag/v6')
+    RUGCHECK_API_KEY = os.getenv('RUGCHECK_API_KEY')
     
-    MIN_WHALE_AMOUNT_USD = float(os.getenv("MIN_WHALE_AMOUNT_USD", "1000"))
-    MAX_POSITION_SOL = float(os.getenv("MAX_POSITION_SOL", "1.0"))
-    SLIPPAGE_BPS = int(os.getenv("SLIPPAGE_BPS", "100"))
-    AUTO_TRADE_ENABLED = os.getenv("AUTO_TRADE_ENABLED", "false").lower() == "true"
-    PORT = int(os.getenv("PORT", "10000"))
+    # Database
+    SUPABASE_URL = os.getenv('SUPABASE_URL')
+    SUPABASE_KEY = os.getenv('SUPABASE_KEY')
     
-    JUPITER_QUOTE_API = "https://quote-api.jup.ag/v6"
-    JUPITER_SWAP_API = "https://quote-api.jup.ag/v6/swap"
+    # Wallet
+    WALLET_PRIVATE_KEY = os.getenv('WALLET_PRIVATE_KEY')
     
-    @property
-    def is_configured(self):
-        return all([self.BOT_TOKEN, self.HELIUS_API_KEY, self.WALLET_PUBLIC_KEY])
-
-config = Config()
+    # Telegram
+    TELEGRAM_BOT_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN')
+    TELEGRAM_CHAT_ID = os.getenv('TELEGRAM_CHAT_ID')
+    TELEGRAM_CHANNEL_ID = os.getenv('TELEGRAM_CHANNEL_ID', TELEGRAM_CHAT_ID)
+    
+    # MEV/Jito
+    JITO_BLOCK_ENGINE_URL = os.getenv('JITO_BLOCK_ENGINE_URL', 'https://mainnet.block-engine.jito.wtf')
+    JITO_TIP_ACCOUNT = os.getenv('JITO_TIP_ACCOUNT', '96gYZGLnJYVFmbjzopPSU6QiEV5fGqZNyN9nmNhvrZU5')
+    
+    @classmethod
+    def reload(cls):
+        """Reload configuration from environment"""
+        load_dotenv(override=True)
+        cls.MIN_WHALE_SIZE = int(os.getenv('MIN_WHALE_SIZE', '5000'))
+        cls.MAX_POSITION_SOL = float(os.getenv('MAX_POSITION_SOL', '10.0'))
+        cls.SLIPPAGE = float(os.getenv('SLIPPAGE', '1.0'))
+        cls.AUTO_TRADE = os.getenv('AUTO_TRADE', 'true').lower() == 'true'

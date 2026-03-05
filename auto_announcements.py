@@ -1,134 +1,73 @@
-"""Automatic announcements for IceAlpha Hunter"""
-import time
-import threading
+import os
+import asyncio
 import logging
 from datetime import datetime
+from telegram import Bot
+from telegram.constants import ParseMode
 
 logger = logging.getLogger(__name__)
 
 class AutoAnnouncer:
-    def __init__(self, bot, channel_id):
+    def __init__(self, bot: Bot, channel_id: str):
         self.bot = bot
         self.channel_id = channel_id
         self.running = False
-        self.thread = None
         
-    def start(self):
-        """Start announcement loop"""
+    async def start(self):
+        """Start periodic announcements"""
         self.running = True
-        self.thread = threading.Thread(target=self._announcement_loop, daemon=True)
-        self.thread.start()
-        logger.info("✅ Auto-announcer started")
-    
-    def _announcement_loop(self):
-        """Send periodic updates"""
-        # Initial welcome
-        time.sleep(30)
-        self._send_welcome()
+        logger.info("Starting auto-announcer...")
         
-        counter = 0
         while self.running:
-            time.sleep(3600)
-            counter += 1
-            if counter % 6 == 0:
-                self._send_status_update()
+            try:
+                await self.send_status_update()
+                await asyncio.sleep(3600)  # Every hour
+            except Exception as e:
+                logger.error(f"Announcer error: {e}")
+                await asyncio.sleep(300)
     
-    def _send_welcome(self):
-        if not self.channel_id:
-            return
-        msg = """
-╔══════════════════════════════════════════╗
-║     🎯 ICE ALPHA HUNTER IS WATCHING      ║
-╚══════════════════════════════════════════╝
-
-👁️ **24/7 Whale Monitoring Active**
-
-I'm scanning Solana for whale transactions $5,000+
-
-When I detect a whale buying, I will:
-1️⃣ Analyze token instantly
-2️⃣ Calculate safe position size  
-3️⃣ Execute copy-trade
-4️⃣ Monitor for profit target
-5️⃣ Auto-sell & transfer profits
-
-💰 **Your Profits**: 100% to your wallet
-⚡ **Speed**: <2 seconds
-🛡️ **Safety**: Auto risk management
-
-🔔 Real-time alerts here!
-
-Ready to catch whales... 🐋
-        """
-        try:
-            self.bot.send_message(chat_id=self.channel_id, text=msg, parse_mode='Markdown')
-        except Exception as e:
-            logger.error(f"Welcome failed: {e}")
-    
-    def _send_status_update(self):
-        from database import db
-        stats = db.get_stats()
+    async def send_status_update(self):
+        """Send periodic status to channel"""
         msg = f"""
-╔══════════════════════════════════════════╗
-║         📊 SYSTEM HEALTH CHECK           ║
-╚══════════════════════════════════════════╝
+⏰ **Hourly Update** - {datetime.now().strftime('%Y-%m-%d %H:%M')}
 
-⏱️ **Uptime**: Operating normally
-📈 **Stats**:
-├─ Trades: {stats.get('total_trades', 0)}
-├─ Profit: {stats.get('total_profit_sol', 0):.4f} SOL
-└─ Win Rate: {stats.get('win_rate', 0):.1f}%
+🤖 IceAlphaHunter Pro Status: 🟢 ONLINE
+📊 Scanning for whale opportunities...
+💰 Target: $5,000+ transactions
+⚡ Auto-trading: Active
 
-🐋 **Status**: Scanning...
-💡 Use /status for live data
-        """
+Join the hunt! 👇
+"""
         try:
-            self.bot.send_message(chat_id=self.channel_id, text=msg, parse_mode='Markdown')
+            await self.bot.send_message(
+                chat_id=self.channel_id,
+                text=msg,
+                parse_mode=ParseMode.MARKDOWN
+            )
         except Exception as e:
-            logger.error(f"Status update failed: {e}")
+            logger.error(f"Failed to send announcement: {e}")
     
-    def announce_trade(self, trade_data):
-        if not self.channel_id:
-            return
+    async def send_trade_alert(self, trade_data: dict):
+        """Send trade alert to channel"""
         msg = f"""
-╔══════════════════════════════════════════╗
-║         🚀 NEW TRADE EXECUTED            ║
-╚══════════════════════════════════════════╝
+🚨 **LIVE TRADE ALERT** 🚨
 
-🐋 **Whale**: `{trade_data['whale_address'][:8]}...`
-💰 **Invested**: {trade_data['amount_sol']:.3f} SOL
-🎯 **Token**: {trade_data['token_symbol']}
-📊 **Entry**: {trade_data['entry_price']:.8f}
-🎫 **TX**: `{trade_data['tx_signature'][:20]}...`
+🪙 Token: `{trade_data['token'][:20]}...`
+💰 Amount: {trade_data['amount']} SOL
+📈 Entry: {trade_data['price']}
+🎯 Target: +20%
+🛑 Stop: -10%
 
-⏳ Holding for profit target...
-        """
+Copy-trading now! ⚡
+"""
         try:
-            self.bot.send_message(chat_id=self.channel_id, text=msg, parse_mode='Markdown')
+            await self.bot.send_message(
+                chat_id=self.channel_id,
+                text=msg,
+                parse_mode=ParseMode.MARKDOWN
+            )
         except Exception as e:
-            logger.error(f"Trade announce failed: {e}")
-    
-    def announce_profit(self, trade_data, profit_sol, profit_usd):
-        if not self.channel_id:
-            return
-        emoji = "🚀" if profit_sol > 0 else "📉"
-        msg = f"""
-╔══════════════════════════════════════════╗
-║        {emoji} TRADE CLOSED {emoji}         ║
-╚══════════════════════════════════════════╝
-
-💰 **PROFIT**
-├─ Token: {trade_data['token_symbol']}
-├─ Profit: {profit_sol:+.4f} SOL
-├─ USD: ${profit_usd:.2f}
-└─ TX: `{trade_data['exit_tx'][:20]}...`
-
-✅ Transferred to your wallet!
-        """
-        try:
-            self.bot.send_message(chat_id=self.channel_id, text=msg, parse_mode='Markdown')
-        except Exception as e:
-            logger.error(f"Profit announce failed: {e}")
+            logger.error(f"Failed to send trade alert: {e}")
     
     def stop(self):
         self.running = False
