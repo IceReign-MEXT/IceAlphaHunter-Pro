@@ -1,24 +1,23 @@
-# Core async
-aiohttp==3.9.1
+# Core async - Latest for Python 3.14 compatibility
+aiohttp==3.9.5
 aiosignal==1.3.1
 async-timeout==4.0.3
-attrs==23.1.0
+attrs==23.2.0
 frozenlist==1.4.1
-multidict==6.0.4
+multidict==6.0.5
 yarl==1.9.4
 
-# Database
-psycopg2-binary==2.9.9
+# Telegram - Use older stable version
+python-telegram-bot==13.15
 
-# Telegram (stable version)
-python-telegram-bot==20.7
-httpx==0.25.2
-httpcore==1.0.2
-anyio==4.2.0
+# HTTP - Pin to working versions
+httpx==0.24.1
+httpcore==0.17.3
+anyio==3.7.1
 h11==0.14.0
 sniffio==1.3.0
 
-# HTTP
+# HTTP requests
 requests==2.31.0
 urllib3==2.1.0
 certifi==2023.11.17
@@ -27,15 +26,5 @@ charset-normalizer==3.3.2
 # Environment
 python-dotenv==1.0.0
 
-# Data validation (NO pydantic v2)
-pydantic==1.10.13
-
-# Date/time
-typing-extensions==4.9.0
-
-# JSON handling
-jsonschema==4.20.0
-
-# NO solders - using pure Python in trading_engine.py
-# NO solana-py - using direct RPC calls
-# NO base58 - using built-in methods
+# No pydantic - use dataclasses instead
+# No solders - pure Python only

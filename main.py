@@ -1,13 +1,11 @@
 #!/usr/bin/env python3
-"""IceAlpha Hunter Pro"""
+"""IceAlpha Hunter Pro - Sync version for Render"""
 import os
 import sys
 
-# Ensure .env is loaded first
 from dotenv import load_dotenv
 load_dotenv()
 
-import asyncio
 import logging
 
 logging.basicConfig(
@@ -17,7 +15,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-async def main():
+def main():
     logger.info("🚀 Starting IceAlpha Hunter Pro...")
     
     from config import config
@@ -29,13 +27,12 @@ async def main():
     
     logger.info(f"💰 Auto-trade: {config.AUTO_TRADE_ENABLED}")
     logger.info(f"🎯 Min whale: ${config.MIN_WHALE_AMOUNT_USD}")
-    logger.info(f"💾 Database: {'PostgreSQL' if config.DATABASE_URL else 'SQLite'}")
     
     from telegram_bot import TelegramBot
     bot = TelegramBot()
     
     try:
-        await bot.run()
+        bot.run()
     except KeyboardInterrupt:
         logger.info("🛑 Shutdown")
     except Exception as e:
@@ -43,4 +40,4 @@ async def main():
         raise
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    main()

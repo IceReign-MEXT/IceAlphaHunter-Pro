@@ -3,45 +3,19 @@ services:
     name: icealpha-hunter
     runtime: python
     plan: starter
-    buildCommand: |
-      # Force Python 3.11 to avoid 3.14 compatibility issues
-      if command -v python3.11 &> /dev/null; then
-        python3.11 -m pip install --upgrade pip
-        python3.11 -m pip install -r requirements.txt
-      else
-        pip install --upgrade pip
-        pip install -r requirements.txt
-      fi
-    startCommand: python3.11 main.py || python main.py
+    
+    # Force Python 3.11
     envVars:
-      - key: PYTHON_VERSION
+      - key: RENDER_PYTHON_VERSION
         value: 3.11.0
-      - key: DATABASE_URL
-        fromDatabase:
-          name: icealpha-db
-          property: connectionString
-      - key: BOT_TOKEN
-        sync: false
-      - key: HELIUS_API_KEY
-        sync: false
-      - key: HELIUS_RPC_URL
-        sync: false
-      - key: WALLET_PRIVATE_KEY
-        sync: false
-      - key: WALLET_PUBLIC_KEY
-        sync: false
-      - key: CHANNEL_ID
-        sync: false
-      - key: ADMIN_ID
-        sync: false
-      - key: MIN_WHALE_AMOUNT_USD
-        value: 5000
-      - key: MAX_POSITION_SOL
-        value: 1.0
-      - key: SLIPPAGE_BPS
-        value: 100
-      - key: AUTO_TRADE_ENABLED
-        value: false
+    
+    buildCommand: |
+      # Install Python 3.11 if available
+      apt-get update && apt-get install -y python3.11 python3.11-pip 2>/dev/null || true
+      pip install --upgrade pip
+      pip install -r requirements.txt
+    
+    startCommand: python main.py
 
 databases:
   - name: icealpha-db
