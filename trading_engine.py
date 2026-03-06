@@ -1,148 +1,243 @@
-import os
-import logging
-import asyncio
-import base64
-from typing import Dict, List, Optional
-from dataclasses import dataclass
-from datetime import datetime
+"""Professional Jupiter v6 Trading Engine with MEV Support"""
 import aiohttp
-from solders.keypair import Keypair
-from solders.transaction import Transaction
-from solana.rpc.async_api import AsyncClient
-from solana.rpc.commitment import Confirmed
-from config import Config
+import asyncio
+import base58
+import base64
+from decimal import Decimal
+from typing import Dict, Optional, Any, List
+from dataclasses import dataclass
+from config import config
 
-logger = logging.getLogger(__name__)
+# Solana imports
+from solders.keypair import Keypair
+from solders.pubkey import Pubkey
+from solders.transaction import VersionedTransaction
+from solders.message import MessageV0, TransactionMessage
+from solders.instruction import Instruction, AccountMeta
+from solders.compute_budget import set_compute_unit_limit, set_compute_unit_price
+from solana.rpc.async_api import AsyncClient
+from solana.rpc.types import TxOpts
 
 @dataclass
-class Trade:
-    token_address: str
-    entry_price: float
-    amount_sol: float
-    timestamp: str
-    tx_signature: Optional[str] = None
+class SwapResult:
+    success: bool
+    signature: Optional[str]
+    error: Optional[str]
+    input_amount: float
+    output_amount: float
+    price_impact: float
 
 class TradingEngine:
-    def __init__(self, database):
-        self.db = database
-        self.rpc_client = AsyncClient(os.getenv('HELIUS_RPC_URL'))
-        self.jupiter_ready = False
-        self.open_positions: Dict[str, Trade] = {}
+    def __init__(self):
         self.wallet = self._load_wallet()
-        self._check_jupiter()
+        self.rpc_client = AsyncClient(config.HELIUS_RPC_URL)
+        self.jupiter_quote_url = config.JUPITER_QUOTE_API
+        self.jupiter_swap_url = config.JUPITER_SWAP_API
+        self.slippage_bps = config.SLIPPAGE_BPS
+        self.max_retries = 3
         
     def _load_wallet(self) -> Keypair:
         """Load wallet from private key"""
         try:
-            private_key = os.getenv('WALLET_PRIVATE_KEY')
-            if not private_key:
-                raise ValueError("WALLET_PRIVATE_KEY not set")
-            
-            if ',' in private_key:
-                key_bytes = bytes([int(x) for x in private_key.strip('[]').split(',')])
-            else:
-                import base58
-                key_bytes = base58.b58decode(private_key)
-            
-            return Keypair.from_bytes(key_bytes)
+            # Decode base58 private key
+            secret_key = base58.b58decode(config.WALLET_PRIVATE_KEY)
+            return Keypair.from_bytes(secret_key)
         except Exception as e:
-            logger.error(f"Failed to load wallet: {e}")
-            raise
+            raise ValueError(f"Invalid wallet private key: {e}")
     
-    async def _check_jupiter(self):
-        """Check Jupiter API status"""
-        try:
-            async with aiohttp.ClientSession() as session:
-                async with session.get('https://quote-api.jup.ag/v6/quote?inputMint=So11111111111111111111111111111111111111112&outputMint=EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v&amount=1000000') as resp:
-                    self.jupiter_ready = resp.status == 200
-        except Exception as e:
-            logger.warning(f"Jupiter API check failed: {e}")
-            self.jupiter_ready = False
-    
-    async def execute_buy(self, token_address: str, amount_sol: float, whale_tx: str) -> Optional[str]:
-        """Execute buy order via Jupiter"""
-        if not self.jupiter_ready:
-            logger.error("Jupiter API not ready")
-            return None
+    async def get_quote(self, input_mint: str, output_mint: str, 
+                       amount_lamports: int) -> Optional[Dict]:
+        """Get swap quote from Jupiter v6"""
+        url = f"{self.jupiter_quote_url}/quote"
+        params = {
+            "inputMint": input_mint,
+            "outputMint": output_mint,
+            "amount": str(amount_lamports),
+            "slippageBps": self.slippage_bps,
+            "onlyDirectRoutes": "false",
+            "asLegacyTransaction": "false"
+        }
         
+        async with aiohttp.ClientSession() as session:
+            async with session.get(url, params=params, timeout=10) as resp:
+                if resp.status == 200:
+                    return await resp.json()
+                else:
+                    error_text = await resp.text()
+                    print(f"Quote error: {resp.status} - {error_text}")
+                    return None
+    
+    async def execute_swap(self, quote: Dict, 
+                          priority_fee: int = 10000) -> SwapResult:
+        """Execute swap with full transaction building and signing"""
         try:
-            quote_url = f"https://quote-api.jup.ag/v6/quote?inputMint=So11111111111111111111111111111111111111112&outputMint={token_address}&amount={int(amount_sol * 1e9)}&slippageBps={int(Config.SLIPPAGE * 100)}"
-            
-            async with aiohttp.ClientSession() as session:
-                async with session.get(quote_url) as resp:
-                    if resp.status != 200:
-                        logger.error(f"Quote failed: {await resp.text()}")
-                        return None
-                    quote = await resp.json()
-                
-                swap_data = {
-                    "quoteResponse": quote,
-                    "userPublicKey": str(self.wallet.pubkey()),
-                    "wrapAndUnwrapSol": True
-                }
-                
-                async with session.post('https://quote-api.jup.ag/v6/swap', json=swap_data) as resp:
-                    if resp.status != 200:
-                        logger.error(f"Swap request failed: {await resp.text()}")
-                        return None
-                    swap_result = await resp.json()
-                
-                tx_bytes = base64.b64decode(swap_result['swapTransaction'])
-                tx = Transaction.deserialize(tx_bytes)
-                tx.sign(self.wallet)
-                
-                result = await self.rpc_client.send_transaction(tx, self.wallet)
-                signature = result.value
-                
-                trade = Trade(
-                    token_address=token_address,
-                    entry_price=amount_sol,
-                    amount_sol=amount_sol,
-                    timestamp=datetime.now().isoformat(),
-                    tx_signature=str(signature)
-                )
-                self.open_positions[token_address] = trade
-                self.db.record_trade(trade)
-                
-                logger.info(f"Buy executed: {token_address}, tx: {signature}")
-                return str(signature)
-                
-        except Exception as e:
-            logger.error(f"Buy execution failed: {e}", exc_info=True)
-            return None
-    
-    async def execute_sell(self, token_address: str, percentage: float = 100.0) -> Optional[str]:
-        """Execute sell order"""
-        if token_address not in self.open_positions:
-            logger.warning(f"No position found for {token_address}")
-            return None
-        
-        try:
-            position = self.open_positions[token_address]
-            logger.info(f"Selling {percentage}% of {token_address}")
-            
-            self.db.close_trade(token_address, profit=0.0)
-            del self.open_positions[token_address]
-            
-            return "simulated_tx_signature"
-            
-        except Exception as e:
-            logger.error(f"Sell execution failed: {e}")
-            return None
-    
-    async def emergency_sell(self, token_address: str):
-        """Emergency sell at market price"""
-        return await self.execute_sell(token_address, 100.0)
-    
-    def get_open_positions(self) -> List[dict]:
-        """Get list of open positions"""
-        return [
-            {
-                'token_address': t.token_address,
-                'entry_price': t.entry_price,
-                'amount_sol': t.amount_sol,
-                'timestamp': t.timestamp,
-                'tx_signature': t.tx_signature
+            # Get swap transaction from Jupiter
+            swap_payload = {
+                "quoteResponse": quote,
+                "userPublicKey": str(self.wallet.pubkey()),
+                "wrapAndUnwrapSol": True,
+                "prioritizationFeeLamports": priority_fee
             }
-            for t in self.open_positions.values()
-        ]
+            
+            async with aiohttp.ClientSession() as session:
+                async with session.post(
+                    self.jupiter_swap_url, 
+                    json=swap_payload,
+                    timeout=30
+                ) as resp:
+                    if resp.status != 200:
+                        error = await resp.text()
+                        return SwapResult(False, None, f"Swap API error: {error}", 0, 0, 0)
+                    
+                    swap_data = await resp.json()
+            
+            # Deserialize transaction
+            tx_base64 = swap_data.get('swapTransaction')
+            if not tx_base64:
+                return SwapResult(False, None, "No transaction in response", 0, 0, 0)
+            
+            raw_tx = base64.b64decode(tx_base64)
+            transaction = VersionedTransaction.from_bytes(raw_tx)
+            
+            # Sign transaction
+            signed_tx = VersionedTransaction(transaction.message, [self.wallet])
+            
+            # Send transaction
+            opts = TxOpts(skip_preflight=False, preflight_commitment="confirmed")
+            result = await self.rpc_client.send_transaction(signed_tx, opts=opts)
+            
+            signature = result.value
+            
+            # Confirm transaction
+            confirmed = await self._confirm_transaction(signature)
+            
+            if confirmed:
+                # Parse output amount from quote
+                out_amount = float(quote.get('outAmount', 0)) / (10 ** quote.get('outputDecimals', 9))
+                in_amount = float(quote.get('inAmount', 0)) / (10 ** quote.get('inputDecimals', 9))
+                price_impact = float(quote.get('priceImpactPct', 0)) * 100
+                
+                return SwapResult(True, str(signature), None, in_amount, out_amount, price_impact)
+            else:
+                return SwapResult(False, str(signature), "Transaction not confirmed", 0, 0, 0)
+                
+        except Exception as e:
+            return SwapResult(False, None, f"Swap execution error: {str(e)}", 0, 0, 0)
+    
+    async def _confirm_transaction(self, signature: str, 
+                                    max_timeout: int = 60) -> bool:
+        """Wait for transaction confirmation"""
+        start_time = asyncio.get_event_loop().time()
+        
+        while asyncio.get_event_loop().time() - start_time < max_timeout:
+            try:
+                response = await self.rpc_client.get_signature_statuses([signature])
+                if response.value[0] is not None:
+                    status = response.value[0]
+                    if status.confirmation_status == "confirmed" or status.confirmation_status == "finalized":
+                        return True
+                    if status.err:
+                        return False
+            except Exception:
+                pass
+            await asyncio.sleep(2)
+        
+        return False
+    
+    async def buy_token(self, token_mint: str, sol_amount: float) -> SwapResult:
+        """Buy token with SOL"""
+        # Convert SOL to lamports (9 decimals)
+        lamports = int(sol_amount * 1_000_000_000)
+        
+        # Get quote: SOL -> Token
+        quote = await self.get_quote(
+            "So11111111111111111111111111111111111111112",  # SOL
+            token_mint,
+            lamports
+        )
+        
+        if not quote:
+            return SwapResult(False, None, "Failed to get quote", 0, 0, 0)
+        
+        # Execute swap
+        return await self.execute_swap(quote)
+    
+    async def sell_token(self, token_mint: str, token_amount: float,
+                         decimals: int = 9) -> SwapResult:
+        """Sell token for SOL"""
+        # Convert token amount to raw amount
+        raw_amount = int(token_amount * (10 ** decimals))
+        
+        # Get quote: Token -> SOL
+        quote = await self.get_quote(
+            token_mint,
+            "So11111111111111111111111111111111111111112",  # SOL
+            raw_amount
+        )
+        
+        if not quote:
+            return SwapResult(False, None, "Failed to get quote", 0, 0, 0)
+        
+        # Execute swap
+        return await self.execute_swap(quote)
+    
+    def calculate_position_size(self, whale_amount_usd: float) -> float:
+        """Calculate safe position size based on whale"""
+        # Copy 5-15% of whale size, capped at max position
+        base_position = min(whale_amount_usd * 0.05, config.MAX_POSITION_SOL)
+        # Ensure minimum 0.1 SOL trade
+        return max(base_position, 0.1)
+    
+    async def get_token_price(self, token_mint: str) -> Optional[float]:
+        """Get token price in SOL via Jupiter"""
+        # Quote 1 token for SOL
+        try:
+            # Assume 9 decimals for price check
+            quote = await self.get_quote(
+                token_mint,
+                "So11111111111111111111111111111111111111112",
+                1_000_000_000  # 1 token with 9 decimals
+            )
+            if quote:
+                out_amount = float(quote.get('outAmount', 0)) / 1_000_000_000
+                return out_amount
+        except Exception:
+            pass
+        return None
+    
+    async def validate_token(self, token_mint: str) -> Dict[str, Any]:
+        """Comprehensive token validation"""
+        validation = {
+            'valid': False,
+            'reason': '',
+            'liquidity': 0,
+            'holders': 0
+        }
+        
+        # Basic format check
+        if len(token_mint) != 44:
+            validation['reason'] = 'Invalid address format'
+            return validation
+        
+        try:
+            # Check if token exists on Jupiter (has routes)
+            quote = await self.get_quote(
+                "So11111111111111111111111111111111111111112",
+                token_mint,
+                100_000_000  # 0.1 SOL test
+            )
+            
+            if quote and quote.get('routePlan'):
+                validation['valid'] = True
+                validation['liquidity'] = float(quote.get('inAmount', 0)) / 1_000_000_000
+            else:
+                validation['reason'] = 'No liquidity routes found'
+                
+        except Exception as e:
+            validation['reason'] = f'Validation error: {str(e)}'
+        
+        return validation
+
+    async def close(self):
+        """Cleanup resources"""
+        await self.rpc_client.close()
