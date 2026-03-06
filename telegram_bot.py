@@ -1,49 +1,87 @@
-"""Telegram Bot Interface"""
-import asyncio
-from typing import Dict, Any
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import (
-    Application, CommandHandler, CallbackQueryHandler,
-    ContextTypes
-)
-from config import config
-from database import db
-from trading_engine import TradingEngine, SwapResult
-from whale_monitor import WhaleMonitor, WhaleTrade
+"""Telegram Bot - python-telegram-bot v13"""
+import sys
+import os
+import time
+import threading
+import logging
+
+# FIX: Add imghdr shim for Python 3.13+
+if 'imghdr' not in sys.modules:
+    import types
+    imghdr = types.ModuleType('imghdr')
+    imghdr.what = lambda file, h=None: None
+    sys.modules['imghdr'] = imghdr
+
+# Now import telegram
+try:
+    from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, Bot
+    from telegram.ext import (
+        Updater, CommandHandler, CallbackQueryHandler,
+        CallbackContext, MessageHandler, Filters
+    )
+except ImportError as e:
+    logging.error(f"Failed to import telegram: {e}")
+    sys.exit(1)
+
+logger = logging.getLogger(__name__)
 
 class TelegramBot:
     def __init__(self):
-        self.app = Application.builder().token(config.BOT_TOKEN).build()
-        self.trading_engine = TradingEngine()
-        self.whale_monitor = WhaleMonitor()
+        self.updater = None
+        self.bot = None
+        self.trading_engine = None
+        self.whale_monitor = None
         self.is_running = False
         
+    def initialize(self):
+        """Initialize components"""
+        from config import config
+        
+        if not config.BOT_TOKEN:
+            raise ValueError("BOT_TOKEN not set")
+        
+        self.updater = Updater(token=config.BOT_TOKEN, use_context=True)
+        self.bot = self.updater.bot
+        
+        # Setup handlers
         self._setup_handlers()
-        self.whale_monitor.on_whale_detected(self._handle_whale)
+        
+        # Initialize other components
+        from trading_engine import TradingEngine
+        from whale_monitor import WhaleMonitor
+        
+        self.trading_engine = TradingEngine()
+        self.whale_monitor = WhaleMonitor()
+        self.whale_monitor.on_whale_detected(self._handle_whale_sync)
+        
+        logger.info("✅ Telegram bot initialized")
     
     def _setup_handlers(self):
-        """Setup handlers"""
-        self.app.add_handler(CommandHandler("start", self.cmd_start))
-        self.app.add_handler(CommandHandler("help", self.cmd_help))
-        self.app.add_handler(CommandHandler("status", self.cmd_status))
-        self.app.add_handler(CommandHandler("stats", self.cmd_stats))
-        self.app.add_handler(CommandHandler("trades", self.cmd_trades))
-        self.app.add_handler(CommandHandler("balance", self.cmd_balance))
-        self.app.add_handler(CommandHandler("settings", self.cmd_settings))
-        self.app.add_handler(CommandHandler("stopbot", self.cmd_stop))
-        self.app.add_handler(CommandHandler("panic", self.cmd_panic_sell))
-        self.app.add_handler(CallbackQueryHandler(self.on_callback))
-        self.app.add_handler(CommandHandler("broadcast", self.cmd_broadcast))
-    
-    async def cmd_start(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Start command"""
-        user_id = update.effective_user.id
+        """Setup command handlers"""
+        dp = self.updater.dispatcher
         
+        dp.add_handler(CommandHandler("start", self.cmd_start))
+        dp.add_handler(CommandHandler("help", self.cmd_help))
+        dp.add_handler(CommandHandler("status", self.cmd_status))
+        dp.add_handler(CommandHandler("stats", self.cmd_stats))
+        dp.add_handler(CommandHandler("trades", self.cmd_trades))
+        dp.add_handler(CommandHandler("balance", self.cmd_balance))
+        dp.add_handler(CommandHandler("settings", self.cmd_settings))
+        dp.add_handler(CommandHandler("stopbot", self.cmd_stop))
+        dp.add_handler(CommandHandler("panic", self.cmd_panic_sell))
+        dp.add_handler(CallbackQueryHandler(self.on_callback))
+        dp.add_handler(CommandHandler("broadcast", self.cmd_broadcast))
+    
+    def cmd_start(self, update: Update, context: CallbackContext):
+        """Start command"""
+        from config import config
+        
+        user_id = update.effective_user.id
         if user_id != config.ADMIN_ID:
-            await update.message.reply_text("⛔ Unauthorized.")
+            update.message.reply_text("⛔ Unauthorized.")
             return
         
-        welcome_text = """
+        welcome_text = f"""
 🤖 **IceAlpha Hunter Pro** - Activated
 
 🎯 MEV-Optimized Whale Following
@@ -59,8 +97,8 @@ class TelegramBot:
 /stopbot - Shutdown
 
 🔔 Channel: ON
-💰 Auto-trade: {}
-        """.format("ON" if config.AUTO_TRADE_ENABLED else "OFF")
+💰 Auto-trade: {'ON' if config.AUTO_TRADE_ENABLED else 'OFF'}
+        """
         
         keyboard = [
             [InlineKeyboardButton("📊 Status", callback_data="status"),
@@ -69,14 +107,15 @@ class TelegramBot:
              InlineKeyboardButton("⚙️ Settings", callback_data="settings")]
         ]
         
-        await update.message.reply_text(
+        update.message.reply_text(
             welcome_text, 
             parse_mode='Markdown',
             reply_markup=InlineKeyboardMarkup(keyboard)
         )
     
-    async def cmd_help(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+    def cmd_help(self, update: Update, context: CallbackContext):
         """Help"""
+        from config import config
         if update.effective_user.id != config.ADMIN_ID:
             return
         
@@ -91,10 +130,13 @@ class TelegramBot:
 /stopbot - Shutdown
 /broadcast <msg> - Channel message
         """
-        await update.message.reply_text(help_text, parse_mode='Markdown')
+        update.message.reply_text(help_text, parse_mode='Markdown')
     
-    async def cmd_status(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+    def cmd_status(self, update: Update, context: CallbackContext):
         """Status"""
+        from config import config
+        from database import db
+        
         if update.effective_user.id != config.ADMIN_ID:
             return
         
@@ -109,20 +151,19 @@ class TelegramBot:
 📈 Win Rate: {stats.get('win_rate', 0):.1f}%
 💵 Profit: {stats.get('total_profit_sol', 0):.3f} SOL
 
-🐋 Whales (24h): {stats.get('whales_24h', 0)}
-🎯 Followed: {stats.get('whales_followed', 0)}
-
 🔧 Config:
 • Min: ${config.MIN_WHALE_AMOUNT_USD:,.0f}
 • Max: {config.MAX_POSITION_SOL} SOL
-• Slippage: {config.SLIPPAGE_BPS/100}%
 • Auto: {'✅' if config.AUTO_TRADE_ENABLED else '❌'}
         """
         
-        await update.message.reply_text(status_text, parse_mode='Markdown')
+        update.message.reply_text(status_text, parse_mode='Markdown')
     
-    async def cmd_stats(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+    def cmd_stats(self, update: Update, context: CallbackContext):
         """Stats"""
+        from config import config
+        from database import db
+        
         if update.effective_user.id != config.ADMIN_ID:
             return
         
@@ -134,73 +175,58 @@ class TelegramBot:
 Trades: {stats.get('total_trades', 0)}
 Profitable: {stats.get('profitable_trades', 0)}
 Win Rate: {stats.get('win_rate', 0):.1f}%
-Avg Profit: {stats.get('avg_profit_sol', 0):.4f} SOL
 
 Total SOL: {stats.get('total_profit_sol', 0):.4f}
 Total USD: ${stats.get('total_profit_usd', 0):.2f}
-
-Whales: {stats.get('whales_detected', 0)}
-Followed: {stats.get('whales_followed', 0)}
         """
         
-        await update.message.reply_text(stats_text, parse_mode='Markdown')
+        update.message.reply_text(stats_text, parse_mode='Markdown')
     
-    async def cmd_trades(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+    def cmd_trades(self, update: Update, context: CallbackContext):
         """Trades"""
+        from config import config
+        from database import db
+        
         if update.effective_user.id != config.ADMIN_ID:
             return
         
         trades = db.get_open_trades()
         
         if not trades:
-            await update.message.reply_text("📭 No active positions")
+            update.message.reply_text("📭 No active positions")
             return
         
         text = "📈 **Active Positions**\n\n"
-        
         for trade in trades:
-            created_str = str(trade['created_at'])[:16] if trade['created_at'] else 'Unknown'
-            text += f"""
-🔸 **{trade['token_symbol']}**
-• Entry: {trade['entry_price']:.6f} SOL
-• Amount: {trade['amount']:.4f}
-• P&L: {trade['profit_sol']:+.4f} SOL
-• Time: {created_str}
-"""
+            created_str = str(trade.get('created_at', ''))[:16]
+            text += f"🔸 **{trade.get('token_symbol', 'Unknown')}**\n"
+            text += f"• Entry: {trade.get('entry_price', 0):.6f} SOL\n"
+            text += f"• Amount: {trade.get('amount', 0):.4f}\n"
+            text += f"• Time: {created_str}\n\n"
         
-        await update.message.reply_text(text, parse_mode='Markdown')
+        update.message.reply_text(text, parse_mode='Markdown')
     
-    async def cmd_balance(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+    def cmd_balance(self, update: Update, context: CallbackContext):
         """Balance"""
+        from config import config
+        
         if update.effective_user.id != config.ADMIN_ID:
             return
         
-        try:
-            from solana.rpc.async_api import AsyncClient
-            client = AsyncClient(config.HELIUS_RPC_URL)
-            
-            pubkey = self.trading_engine.wallet.pubkey()
-            response = await client.get_balance(pubkey)
-            sol_balance = response.value / 1_000_000_000
-            
-            await client.close()
-            
-            text = f"""
+        text = f"""
 💰 **Wallet**
 
-Address: `{pubkey}`
-Balance: {sol_balance:.4f} SOL
+Address: `{config.WALLET_PUBLIC_KEY}`
 
-⚠️ Keep 0.05+ SOL for fees
-            """
-            
-            await update.message.reply_text(text, parse_mode='Markdown')
-            
-        except Exception as e:
-            await update.message.reply_text(f"❌ Error: {str(e)}")
+⚠️ Use /status for detailed info
+        """
+        
+        update.message.reply_text(text, parse_mode='Markdown')
     
-    async def cmd_settings(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+    def cmd_settings(self, update: Update, context: CallbackContext):
         """Settings"""
+        from config import config
+        
         if update.effective_user.id != config.ADMIN_ID:
             return
         
@@ -211,83 +237,100 @@ Min Whale: ${config.MIN_WHALE_AMOUNT_USD:,.0f}
 Max Position: {config.MAX_POSITION_SOL} SOL
 Slippage: {config.SLIPPAGE_BPS/100}%
 Auto-Trade: {'✅ ON' if config.AUTO_TRADE_ENABLED else '❌ OFF'}
-
-Wallet: `{config.WALLET_PUBLIC_KEY[:20]}...`
         """
         
-        await update.message.reply_text(settings_text, parse_mode='Markdown')
+        update.message.reply_text(settings_text, parse_mode='Markdown')
     
-    async def cmd_panic_sell(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+    def cmd_panic_sell(self, update: Update, context: CallbackContext):
         """Panic sell"""
+        from config import config
+        from database import db
+        
         if update.effective_user.id != config.ADMIN_ID:
             return
         
-        await update.message.reply_text("🚨 **PANIC SELL**", parse_mode='Markdown')
+        update.message.reply_text("🚨 **PANIC SELL INITIATED**", parse_mode='Markdown')
         
         trades = db.get_open_trades()
         sold = 0
         
         for trade in trades:
             try:
-                result = await self.trading_engine.sell_token(
-                    trade['token_mint'],
-                    trade['amount']
-                )
+                import asyncio
+                result = asyncio.run(self.trading_engine.sell_token(
+                    trade.get('token_mint', ''),
+                    trade.get('amount', 0)
+                ))
                 
                 if result.success:
-                    profit = result.output_amount - trade['amount']
-                    db.close_trade(trade['id'], result.output_amount, profit, 0, result.signature)
+                    profit = result.output_amount - trade.get('amount', 0)
+                    db.close_trade(trade.get('id'), result.output_amount, profit, 0, result.signature or '')
                     sold += 1
-                    
             except Exception as e:
-                print(f"Panic error: {e}")
+                logger.error(f"Panic sell error: {e}")
         
-        await update.message.reply_text(f"✅ Sold {sold}/{len(trades)}")
+        update.message.reply_text(f"✅ Sold {sold}/{len(trades)} positions")
     
-    async def cmd_stop(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+    def cmd_stop(self, update: Update, context: CallbackContext):
         """Stop"""
+        from config import config
+        
         if update.effective_user.id != config.ADMIN_ID:
             return
         
         self.is_running = False
-        await update.message.reply_text("🛑 Shutting down...")
+        update.message.reply_text("🛑 Shutting down...")
+        self.updater.stop()
     
-    async def cmd_broadcast(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+    def cmd_broadcast(self, update: Update, context: CallbackContext):
         """Broadcast"""
+        from config import config
+        
         if update.effective_user.id != config.ADMIN_ID:
             return
         
         message = ' '.join(context.args)
         if not message:
-            await update.message.reply_text("Usage: /broadcast <msg>")
+            update.message.reply_text("Usage: /broadcast <msg>")
             return
         
         try:
-            await context.bot.send_message(
+            self.bot.send_message(
                 chat_id=config.CHANNEL_ID,
-                text=f"📢 **Admin**\n\n{message}",
+                text=f"📢 **Admin Update**\n\n{message}",
                 parse_mode='Markdown'
             )
-            await update.message.reply_text("✅ Sent")
+            update.message.reply_text("✅ Broadcast sent")
         except Exception as e:
-            await update.message.reply_text(f"❌ Failed: {str(e)}")
+            update.message.reply_text(f"❌ Failed: {str(e)}")
     
-    async def on_callback(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+    def on_callback(self, update: Update, context: CallbackContext):
         """Callbacks"""
         query = update.callback_query
-        await query.answer()
+        query.answer()
         
         if query.data == "status":
-            await self.cmd_status(update, context)
+            self.cmd_status(update, context)
         elif query.data == "stats":
-            await self.cmd_stats(update, context)
+            self.cmd_stats(update, context)
         elif query.data == "trades":
-            await self.cmd_trades(update, context)
+            self.cmd_trades(update, context)
         elif query.data == "settings":
-            await self.cmd_settings(update, context)
+            self.cmd_settings(update, context)
     
-    async def _handle_whale(self, whale: WhaleTrade):
-        """Handle whale"""
+    def _handle_whale_sync(self, whale):
+        """Handle whale (sync wrapper)"""
+        import asyncio
+        try:
+            asyncio.run(self._handle_whale_async(whale))
+        except Exception as e:
+            logger.error(f"Handle whale error: {e}")
+    
+    async def _handle_whale_async(self, whale):
+        """Handle whale (async)"""
+        from config import config
+        from database import db
+        
         try:
             alert_id = db.log_whale_alert({
                 'signature': whale.signature,
@@ -303,8 +346,8 @@ Wallet: `{config.WALLET_PUBLIC_KEY[:20]}...`
                 return
             
             validation = await self.trading_engine.validate_token(whale.token_mint)
-            if not validation['valid']:
-                print(f"Invalid: {validation['reason']}")
+            if not validation.get('valid'):
+                logger.info(f"Token validation failed: {validation.get('reason')}")
                 return
             
             position = self.trading_engine.calculate_position_size(whale.amount_usd)
@@ -314,7 +357,7 @@ Wallet: `{config.WALLET_PUBLIC_KEY[:20]}...`
                 
                 if result.success:
                     trade_id = db.log_trade({
-                        'signature': result.signature,
+                        'signature': result.signature or 'unknown',
                         'token_mint': whale.token_mint,
                         'token_symbol': whale.token_symbol,
                         'entry_price': result.output_amount / position if position > 0 else 0,
@@ -327,19 +370,21 @@ Wallet: `{config.WALLET_PUBLIC_KEY[:20]}...`
                         }
                     })
                     
-                    db.mark_whale_followed(alert_id, trade_id)
+                    if trade_id:
+                        db.mark_whale_followed(alert_id or 0, trade_id)
+                    
                     await self._notify_channel(whale, result, position)
                 else:
-                    print(f"Trade failed: {result.error}")
+                    logger.error(f"Trade failed: {result.error}")
             
         except Exception as e:
-            print(f"Whale error: {e}")
+            logger.error(f"Handle whale error: {e}")
     
-    async def _notify_channel(self, whale: WhaleTrade, result: SwapResult, position: float):
+    async def _notify_channel(self, whale, result, position):
         """Notify channel"""
+        from config import config
+        
         try:
-            app = Application.builder().token(config.BOT_TOKEN).build()
-            
             message = f"""
 🐋 **WHALE FOLLOWED**
 
@@ -351,33 +396,34 @@ Whale Buy: ${whale.amount_usd:,.2f}
 • Invested: {position:.3f} SOL
 • Got: {result.output_amount:.4f} {whale.token_symbol}
 • Impact: {result.price_impact:.2f}%
-• TX: `{result.signature[:20]}...`
+• TX: `{str(result.signature)[:20]}...`
 
 ⏳ Holding...
             """
             
-            await app.bot.send_message(
+            self.bot.send_message(
                 chat_id=config.CHANNEL_ID,
                 text=message,
                 parse_mode='Markdown',
                 disable_web_page_preview=True
             )
-            
         except Exception as e:
-            print(f"Notify error: {e}")
+            logger.error(f"Notify channel error: {e}")
     
-    async def run(self):
-        """Run"""
+    def run(self):
+        """Run bot"""
+        self.initialize()
         self.is_running = True
         
-        asyncio.create_task(self.whale_monitor.start_monitoring())
+        # Start whale monitor in thread
+        whale_thread = threading.Thread(target=self.whale_monitor.start_monitoring_sync, daemon=True)
+        whale_thread.start()
         
-        await self.app.initialize()
-        await self.app.start()
-        print("🤖 Bot running...")
+        # Start polling
+        self.updater.start_polling()
+        logger.info("🤖 Bot is running...")
         
-        while self.is_running:
-            await asyncio.sleep(1)
+        # Keep running
+        self.updater.idle()
         
-        await self.app.stop()
-        await self.trading_engine.close()
+        self.is_running = False

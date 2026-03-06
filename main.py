@@ -1,11 +1,20 @@
 #!/usr/bin/env python3
-"""IceAlpha Hunter Pro"""
-import asyncio
-import logging
+"""IceAlpha Hunter Pro - With imghdr shim"""
 import sys
-from telegram_bot import TelegramBot
-from config import config
+import os
 
+# Add imghdr shim BEFORE anything else (Python 3.13+ compatibility)
+if 'imghdr' not in sys.modules:
+    import types
+    imghdr = types.ModuleType('imghdr')
+    imghdr.what = lambda file, h=None: None
+    sys.modules['imghdr'] = imghdr
+
+# Now load dotenv
+from dotenv import load_dotenv
+load_dotenv()
+
+import logging
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -13,28 +22,29 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-async def main():
-    """Main"""
+def main():
+    """Main entry point"""
     logger.info("🚀 Starting IceAlpha Hunter Pro...")
     
+    from config import config
+    
     if not config.is_configured:
-        logger.error("❌ Missing config. Check .env")
-        logger.error("Need: BOT_TOKEN, HELIUS_API_KEY, WALLET_PRIVATE_KEY, DATABASE_URL")
+        logger.error("❌ Missing config: BOT_TOKEN, HELIUS_API_KEY, or WALLET_PUBLIC_KEY")
         sys.exit(1)
     
-    logger.info("✅ Config valid")
-    logger.info(f"💰 Auto-trade: {'ON' if config.AUTO_TRADE_ENABLED else 'OFF'}")
-    logger.info(f"🎯 Min whale: ${config.MIN_WHALE_AMOUNT_USD:,.0f}")
+    logger.info(f"💰 Auto-trade: {config.AUTO_TRADE_ENABLED}")
+    logger.info(f"🎯 Min whale: ${config.MIN_WHALE_AMOUNT_USD}")
     
+    from telegram_bot import TelegramBot
     bot = TelegramBot()
     
     try:
-        await bot.run()
+        bot.run()
     except KeyboardInterrupt:
-        logger.info("🛑 Shutdown")
+        logger.info("🛑 Shutdown requested")
     except Exception as e:
-        logger.error(f"Fatal: {e}")
+        logger.error(f"Fatal error: {e}")
         raise
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    main()
