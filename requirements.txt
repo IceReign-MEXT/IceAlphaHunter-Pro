@@ -1,17 +1,18 @@
-# Compatible versions: solana needs httpx<0.24, PTB 20.2 uses httpx~=0.23.3
+# All packages compatible with httpx 0.23.3
 python-telegram-bot==20.2
 httpx==0.23.3
 httpcore==0.16.3
 
-# Solana/Web3
+# Solana (requires httpx<0.24)
 solana==0.30.2
 solders==0.20.0
 base58==2.1.1
 
-# Database (compatible with httpx 0.23.3)
+# Database - DOWNGRADED for httpx 0.23.3 compatibility
+# supabase 2.3.4 requires httpx>=0.24, so we use 2.3.0 which is more flexible
+supabase==2.3.0
 websockets==11.0.3
 aiohttp==3.9.1
-supabase==2.3.4
 
 # Utilities
 python-dotenv==1.0.0
