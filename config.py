@@ -1,7 +1,6 @@
 """Centralized configuration management"""
 import os
 from dataclasses import dataclass
-from typing import Optional
 
 @dataclass
 class Config:
@@ -16,14 +15,14 @@ class Config:
     WALLET_PRIVATE_KEY: str = os.getenv("WALLET_PRIVATE_KEY", "")
     WALLET_PUBLIC_KEY: str = os.getenv("WALLET_PUBLIC_KEY", "")
     
-    # Supabase
+    # Supabase - NEW HOST: aws-1-eu-west-3.pooler.supabase.com:5432
     DATABASE_URL: str = os.getenv("DATABASE_URL", "")
     SUPABASE_URL: str = os.getenv("SUPABASE_URL", "")
     SUPABASE_KEY: str = os.getenv("SUPABASE_KEY", "")
     
     # Trading
-    MIN_WHALE_AMOUNT_USD: float = float(os.getenv("MIN_WHALE_AMOUNT_USD", "5000"))
-    MAX_POSITION_SOL: float = float(os.getenv("MAX_POSITION_SOL", "10"))
+    MIN_WHALE_AMOUNT_USD: float = float(os.getenv("MIN_WHALE_AMOUNT_USD", "1000"))
+    MAX_POSITION_SOL: float = float(os.getenv("MAX_POSITION_SOL", "1.0"))
     SLIPPAGE_BPS: int = int(os.getenv("SLIPPAGE_BPS", "100"))
     JITO_TIP_LAMPORTS: int = int(os.getenv("JITO_TIP_LAMPORTS", "10000"))
     AUTO_TRADE_ENABLED: bool = os.getenv("AUTO_TRADE_ENABLED", "false").lower() == "true"

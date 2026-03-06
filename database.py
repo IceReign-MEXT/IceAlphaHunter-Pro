@@ -11,7 +11,21 @@ from config import config
 class Database:
     def __init__(self):
         self.connection_string = config.DATABASE_URL
+        # Verify connection on init
+        self._test_connection()
         self._init_tables()
+    
+    def _test_connection(self):
+        """Test database connection"""
+        try:
+            with self._get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute("SELECT version();")
+                version = cursor.fetchone()
+                print(f"✅ Database connected: {version[0][:50]}...")
+        except Exception as e:
+            print(f"❌ Database connection failed: {e}")
+            raise
     
     @contextmanager
     def _get_connection(self):
@@ -91,6 +105,7 @@ class Database:
                 cursor.execute("INSERT INTO bot_stats DEFAULT VALUES")
             
             conn.commit()
+            print("✅ Database tables initialized")
     
     def log_trade(self, trade_data: Dict[str, Any]) -> int:
         """Log new trade to database"""
