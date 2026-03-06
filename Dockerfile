@@ -8,9 +8,11 @@ RUN apt-get update && apt-get install -y \
     libpq-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy requirements first for better caching
+# Copy requirements first
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+
+# Force reinstall to ensure correct versions
+RUN pip install --no-cache-dir --force-reinstall -r requirements.txt
 
 # Copy application code
 COPY . .
@@ -18,9 +20,5 @@ COPY . .
 # Create non-root user
 RUN useradd -m -u 1000 botuser && chown -R botuser:botuser /app
 USER botuser
-
-# Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD python -c "import sys; sys.exit(0)"
 
 CMD ["python", "main.py"]

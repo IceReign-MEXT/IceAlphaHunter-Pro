@@ -42,7 +42,6 @@ class WhaleMonitor:
             self.ws_connected = True
             logger.info("✅ WebSocket connected")
             
-            # Subscribe to logs
             subscribe_msg = {
                 "jsonrpc": "2.0",
                 "id": 1,
@@ -74,7 +73,6 @@ class WhaleMonitor:
             result = data['params'].get('result', {})
             logs = result.get('logs', [])
             
-            # Look for swap instructions
             if any('swap' in log.lower() or 'Swap' in log for log in logs):
                 tx_data = self._parse_swap_transaction(result)
                 
@@ -100,15 +98,11 @@ class WhaleMonitor:
     
     def _extract_token_address(self, result: dict) -> str:
         """Extract token address from logs"""
-        logs = result.get('logs', [])
-        for log in logs:
-            if 'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA' in log:
-                pass
         return "unknown_token"
     
     def _estimate_value(self, result: dict) -> float:
         """Estimate USD value"""
-        return 10000.0  # Placeholder
+        return 10000.0
     
     async def _handle_whale_trade(self, tx_data: dict):
         """Handle detected whale trade"""
@@ -120,7 +114,6 @@ class WhaleMonitor:
 💰 Value: ${tx_data['value_usd']:,.0f}
 🪙 Token: `{tx_data['token_address'][:20]}...`
 👤 Whale: `{tx_data['buyer'][:20]}...`
-🔗 Tx: `{tx_data['signature'][:20]}...`
 
 {'⚡ AUTO-BUY TRIGGERED!' if Config.AUTO_TRADE else '👁️ Monitoring only'}
 """
@@ -132,10 +125,7 @@ class WhaleMonitor:
     async def _execute_copy_trade(self, tx_data: dict):
         """Execute copy-cat trade"""
         try:
-            position_sol = min(
-                tx_data['value_usd'] / 20,
-                Config.MAX_POSITION_SOL
-            )
+            position_sol = min(tx_data['value_usd'] / 20, Config.MAX_POSITION_SOL)
             
             signature = await self.trading_engine.execute_buy(
                 token_address=tx_data['token_address'],
@@ -144,21 +134,13 @@ class WhaleMonitor:
             )
             
             if signature:
-                success_msg = f"""
-✅ **COPY-TRADE EXECUTED**
-
-🪙 Token: `{tx_data['token_address'][:20]}...`
-💸 Amount: {position_sol:.2f} SOL
-🔗 Tx: `{signature[:30]}...`
-⏱️ Latency: <2s from whale detection
-"""
-                await self.send_alert(success_msg)
+                await self.send_alert(f"✅ COPY-TRADE EXECUTED: {position_sol:.2f} SOL")
             else:
-                await self.send_alert("❌ Copy-trade failed - check logs")
+                await self.send_alert("❌ Copy-trade failed")
                 
         except Exception as e:
-            logger.error(f"Copy-trade execution failed: {e}")
-            await self.send_alert(f"❌ Copy-trade error: {str(e)}")
+            logger.error(f"Copy-trade failed: {e}")
+            await self.send_alert(f"❌ Error: {str(e)}")
     
     async def stop(self):
         """Stop the monitor"""

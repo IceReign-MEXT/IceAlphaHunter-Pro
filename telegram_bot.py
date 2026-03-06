@@ -43,7 +43,7 @@ class TelegramBot:
         self._register_handlers()
         
     def _register_handlers(self):
-        """CRITICAL: Register all command handlers"""
+        """Register all command handlers"""
         logger.info("Registering command handlers...")
         
         handlers = [
@@ -101,13 +101,6 @@ Copy-trade whale moves → Auto-sell for profit → 100% to your wallet
 ├─ Slippage: {self.config.SLIPPAGE}%
 ├─ Auto-Trade: {'🟢 ACTIVE' if self.config.AUTO_TRADE else '🔴 PAUSED'}
 └─ Uptime: {self._get_uptime()}
-
-💎 WHY WE'RE BETTER
-✓ Faster than manual trading
-✓ No emotions, pure data
-✓ 24/7 monitoring
-✓ Instant execution
-✓ Full transparency
 
 💰 YOUR WALLET
 `{wallet}`
@@ -179,14 +172,6 @@ All profits auto-transfer here
 ├─ Total USD: ${self.profit_manager.get_total_profit_usd():.2f}
 ├─ Best Trade: +{stats.get('best_trade', 0):.4f} SOL
 └─ Worst Trade: {stats.get('worst_trade', 0):.4f} SOL
-
-🐋 WHALE ACTIVITY
-├─ Detected: {stats.get('whales_detected', 0)}
-├─ Followed: {stats.get('whales_followed', 0)}
-└─ Conversion: {stats.get('conversion_rate', 0):.1f}%
-
-📈 EFFICIENCY RATING
-{'⭐' * int(stats.get('win_rate', 0) / 20)}
 """
         await update.message.reply_text(stats_msg, parse_mode=ParseMode.MARKDOWN)
     
@@ -215,7 +200,6 @@ Target: $5,000+ transactions
                 msg += f"├─ Token: `{pos['token_address'][:20]}...`\n"
                 msg += f"├─ Entry: {pos['entry_price']:.6f} SOL\n"
                 msg += f"├─ Amount: {pos['amount_sol']:.4f} SOL\n"
-                msg += f"├─ PnL: {pos.get('pnl', 0):+.4f} SOL\n"
                 msg += f"└─ Time: {pos['timestamp']}\n\n"
         
         await update.message.reply_text(msg, parse_mode=ParseMode.MARKDOWN)
@@ -236,7 +220,6 @@ Target: $5,000+ transactions
             emoji = "🟢" if trade.get('profit', 0) > 0 else "🔴"
             msg += f"{emoji} `{trade['token_address'][:15]}...`\n"
             msg += f"├─ Profit: {trade.get('profit', 0):+.4f} SOL\n"
-            msg += f"├─ Duration: {trade.get('duration', 'N/A')}\n"
             msg += f"└─ Closed: {trade.get('close_time', 'Unknown')}\n\n"
         
         await update.message.reply_text(msg, parse_mode=ParseMode.MARKDOWN)
@@ -246,14 +229,7 @@ Target: $5,000+ transactions
         top_trades = self.db.get_top_trades(limit=5)
         
         if not top_trades:
-            msg = """
-🏆 TOP PERFORMING TRADES
-
-No completed trades yet.
-Start trading to see leaderboard!
-
-💡 Tip: Use /history for full log
-"""
+            msg = "🏆 No completed trades yet."
         else:
             msg = "╔══════════════════════════════════════════╗\n"
             msg += "║         🏆 TOP PERFORMING TRADES          ║\n"
@@ -262,7 +238,7 @@ Start trading to see leaderboard!
             for i, trade in enumerate(top_trades, 1):
                 medal = ["🥇", "🥈", "🥉", "4️⃣", "5️⃣"][i-1]
                 msg += f"{medal} #{i}: `{trade['token_address'][:20]}...`\n"
-                msg += f"   Profit: +{trade['profit']:.4f} SOL (${trade.get('profit_usd', 0):.2f})\n\n"
+                msg += f"   Profit: +{trade['profit']:.4f} SOL\n\n"
         
         await update.message.reply_text(msg, parse_mode=ParseMode.MARKDOWN)
     
@@ -280,20 +256,8 @@ AVAILABLE BALANCE
 ├─ 💵 USD: ${profit_data['available_usd']:.2f}
 └─ 📈 Unrealized: {profit_data['unrealized_sol']:.4f} SOL
 
-NEXT MILESTONE
-{'█' * int(profit_data['progress'] / 5)}{'░' * (20 - int(profit_data['progress'] / 5))} {profit_data['progress']:.1f}% {profit_data['current']:.2f}/{profit_data['target']:.2f} SOL
-
-WITHDRAWAL INFO
-├─ 🎯 Destination: Your wallet
-├─ 🔄 Method: Auto-transfer on sell
-├─ ⛽ Fee: 0% (internal)
-└─ ⚡ Speed: Instant
-
 WALLET
 `{os.getenv('WALLET_ADDRESS', 'Not configured')}`
-
-💡 Profits transfer automatically!
-No manual withdrawal needed.
 """
         await update.message.reply_text(msg, parse_mode=ParseMode.MARKDOWN)
     
@@ -313,15 +277,7 @@ No manual withdrawal needed.
 🔌 RPC: Helius (Premium Tier)
 💎 Type: Self-Custody
 
-⚠️ IMPORTANT
-├─ Keep 0.05+ SOL for transaction fees
-├─ Never share private key
-└─ All profits auto-deposit here
-
-💸 Withdrawals
-Profits are automatically transferred to this wallet when trades close. No manual action needed!
-
-🔒 Security: Maximum
+⚠️ Keep 0.05+ SOL for transaction fees
 """
         await update.message.reply_text(msg, parse_mode=ParseMode.MARKDOWN)
     
@@ -336,24 +292,13 @@ CURRENT SETTINGS
 ├─ Min Whale Size: ${self.config.MIN_WHALE_SIZE:,}
 ├─ Max Position: {self.config.MAX_POSITION_SOL} SOL
 ├─ Slippage: {self.config.SLIPPAGE}%
-├─ Auto-Sell Target: {self.config.TAKE_PROFIT}%
-├─ Stop Loss: {self.config.STOP_LOSS}%
-└─ Auto-Trade: {'✅ ON' if self.config.AUTO_TRADE else '❌ OFF'}
-
-ADMIN COMMANDS
-├─ /setminwhale <amount> - Update min whale ($)
-├─ /setmaxposition <sol> - Update max position
-├─ /setslippage <percent> - Update slippage %
-└─ /toggletrading - Enable/disable auto-trade
-
-⚠️ Changes take effect immediately
+├─ Auto-Trade: {'✅ ON' if self.config.AUTO_TRADE else '❌ OFF'}
 """
         await update.message.reply_text(msg, parse_mode=ParseMode.MARKDOWN)
     
     async def cmd_panic(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Handle /panic command - Emergency sell all"""
+        """Emergency sell all"""
         await update.message.reply_text("🚨 INITIATING EMERGENCY LIQUIDATION...")
-        
         positions = self.trading_engine.get_open_positions()
         if not positions:
             await update.message.reply_text("📭 No positions to sell")
@@ -370,16 +315,15 @@ ADMIN COMMANDS
         await update.message.reply_text(f"✅ Sold {sold_count}/{len(positions)} positions")
     
     async def cmd_stopbot(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Handle /stopbot command"""
+        """Stop the bot"""
         await update.message.reply_text("🛑 Shutting down... 👋")
         await self.stop()
     
     async def cmd_set_min_whale(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Admin: Set minimum whale size"""
+        """Set minimum whale size"""
         if not context.args:
             await update.message.reply_text("Usage: /setminwhale <amount_in_usd>")
             return
-        
         try:
             amount = int(context.args[0])
             self.config.MIN_WHALE_SIZE = amount
@@ -388,11 +332,10 @@ ADMIN COMMANDS
             await update.message.reply_text("❌ Invalid amount")
     
     async def cmd_set_max_position(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Admin: Set max position size"""
+        """Set max position size"""
         if not context.args:
             await update.message.reply_text("Usage: /setmaxposition <sol_amount>")
             return
-        
         try:
             amount = float(context.args[0])
             self.config.MAX_POSITION_SOL = amount
@@ -401,11 +344,10 @@ ADMIN COMMANDS
             await update.message.reply_text("❌ Invalid amount")
     
     async def cmd_set_slippage(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Admin: Set slippage tolerance"""
+        """Set slippage tolerance"""
         if not context.args:
             await update.message.reply_text("Usage: /setslippage <percent>")
             return
-        
         try:
             percent = float(context.args[0])
             self.config.SLIPPAGE = percent
@@ -414,7 +356,7 @@ ADMIN COMMANDS
             await update.message.reply_text("❌ Invalid percentage")
     
     async def cmd_toggle_trading(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Admin: Toggle auto-trading"""
+        """Toggle auto-trading"""
         self.config.AUTO_TRADE = not self.config.AUTO_TRADE
         status = "ENABLED" if self.config.AUTO_TRADE else "DISABLED"
         await update.message.reply_text(f"🔄 Auto-trading {status}")

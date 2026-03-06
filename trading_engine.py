@@ -66,7 +66,6 @@ class TradingEngine:
             return None
         
         try:
-            # Get quote
             quote_url = f"https://quote-api.jup.ag/v6/quote?inputMint=So11111111111111111111111111111111111111112&outputMint={token_address}&amount={int(amount_sol * 1e9)}&slippageBps={int(Config.SLIPPAGE * 100)}"
             
             async with aiohttp.ClientSession() as session:
@@ -76,7 +75,6 @@ class TradingEngine:
                         return None
                     quote = await resp.json()
                 
-                # Get swap transaction
                 swap_data = {
                     "quoteResponse": quote,
                     "userPublicKey": str(self.wallet.pubkey()),
@@ -89,16 +87,13 @@ class TradingEngine:
                         return None
                     swap_result = await resp.json()
                 
-                # Deserialize and sign transaction
                 tx_bytes = base64.b64decode(swap_result['swapTransaction'])
                 tx = Transaction.deserialize(tx_bytes)
                 tx.sign(self.wallet)
                 
-                # Send transaction
                 result = await self.rpc_client.send_transaction(tx, self.wallet)
                 signature = result.value
                 
-                # Record trade
                 trade = Trade(
                     token_address=token_address,
                     entry_price=amount_sol,
@@ -126,7 +121,6 @@ class TradingEngine:
             position = self.open_positions[token_address]
             logger.info(f"Selling {percentage}% of {token_address}")
             
-            # Record profit/loss (simplified)
             self.db.close_trade(token_address, profit=0.0)
             del self.open_positions[token_address]
             
