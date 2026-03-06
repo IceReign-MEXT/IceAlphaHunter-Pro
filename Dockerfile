@@ -8,11 +8,9 @@ RUN apt-get update && apt-get install -y \
     libpq-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy requirements first
+# Copy and install requirements (NO force-reinstall)
 COPY requirements.txt .
-
-# Force reinstall to ensure correct versions
-RUN pip install --no-cache-dir --force-reinstall -r requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy application code
 COPY . .
