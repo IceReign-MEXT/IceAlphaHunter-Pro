@@ -1,198 +1,111 @@
-"""SQLite Database - No external dependencies"""
+"""Database module using direct Supabase HTTP API"""
 import os
-import sys
-import json
-import sqlite3
+import requests
+from typing import Dict, List, Any, Optional
 import logging
-from datetime import datetime
-from typing import List, Dict, Optional, Any
-from contextlib import contextmanager
 
 logger = logging.getLogger(__name__)
 
-# Try to load .env
-try:
-    from dotenv import load_dotenv
-    load_dotenv()
-except:
-    pass
-
-DATABASE_URL = os.getenv('DATABASE_URL', '')
-
-class Database:
+class SupabaseClient:
+    """Simple Supabase client using HTTP REST API"""
+    
     def __init__(self):
-        self.sqlite_db = 'trades.db'
-        self._init_sqlite()
-        logger.info("✅ SQLite database initialized")
+        self.url = os.getenv("SUPABASE_URL", "").rstrip("/")
+        self.key = os.getenv("SUPABASE_KEY", "")
+        self.headers = {
+            "apikey": self.key,
+            "Authorization": f"Bearer {self.key}",
+            "Content-Type": "application/json",
+            "Prefer": "return=representation"
+        }
     
-    def _init_sqlite(self):
-        """Initialize SQLite"""
-        conn = sqlite3.connect(self.sqlite_db)
-        cursor = conn.cursor()
+    def _request(self, method: str, endpoint: str, data=None, params=None) -> Any:
+        """Make HTTP request to Supabase"""
+        url = f"{self.url}/rest/v1/{endpoint}"
         
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS trades (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                signature TEXT UNIQUE,
-                token_mint TEXT,
-                token_symbol TEXT,
-                entry_price REAL,
-                exit_price REAL,
-                amount REAL,
-                profit_sol REAL DEFAULT 0,
-                profit_usd REAL DEFAULT 0,
-                status TEXT DEFAULT 'open',
-                whale_signature TEXT,
-                whale_amount_usd REAL,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                closed_at TIMESTAMP,
-                metadata TEXT
-            )
-        ''')
-        
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS whale_alerts (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                signature TEXT UNIQUE,
-                trader_address TEXT,
-                token_mint TEXT,
-                token_symbol TEXT,
-                amount_usd REAL,
-                amount_tokens REAL,
-                transaction_type TEXT,
-                detected_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                followed INTEGER DEFAULT 0,
-                our_trade_id INTEGER
-            )
-        ''')
-        
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS bot_stats (
-                id INTEGER PRIMARY KEY,
-                total_trades INTEGER DEFAULT 0,
-                profitable_trades INTEGER DEFAULT 0,
-                total_profit_sol REAL DEFAULT 0,
-                total_profit_usd REAL DEFAULT 0,
-                whales_detected INTEGER DEFAULT 0,
-                whales_followed INTEGER DEFAULT 0,
-                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )
-        ''')
-        
-        cursor.execute("SELECT COUNT(*) FROM bot_stats")
-        if cursor.fetchone()[0] == 0:
-            cursor.execute("INSERT INTO bot_stats DEFAULT VALUES")
-        
-        conn.commit()
-        conn.close()
-    
-    @contextmanager
-    def _get_connection(self):
-        conn = sqlite3.connect(self.sqlite_db)
-        conn.row_factory = sqlite3.Row
         try:
-            yield conn
-        finally:
-            conn.close()
+            if method == "GET":
+                response = requests.get(url, headers=self.headers, params=params, timeout=30)
+            elif method == "POST":
+                response = requests.post(url, headers=self.headers, json=data, params=params, timeout=30)
+            elif method == "PATCH":
+                response = requests.patch(url, headers=self.headers, json=data, params=params, timeout=30)
+            elif method == "DELETE":
+                response = requests.delete(url, headers=self.headers, params=params, timeout=30)
+            else:
+                raise ValueError(f"Unsupported method: {method}")
+            
+            response.raise_for_status()
+            
+            if response.status_code == 204:
+                return None
+            return response.json()
+            
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Database request failed: {e}")
+            raise
     
-    def log_trade(self, trade_data: Dict[str, Any]) -> int:
-        with self._get_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute("""
-                INSERT OR IGNORE INTO trades (
-                    signature, token_mint, token_symbol, entry_price, 
-                    amount, whale_signature, whale_amount_usd, metadata
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-            """, (
-                trade_data.get('signature'),
-                trade_data.get('token_mint'),
-                trade_data.get('token_symbol'),
-                trade_data.get('entry_price', 0),
-                trade_data.get('amount', 0),
-                trade_data.get('whale_signature'),
-                trade_data.get('whale_amount_usd', 0),
-                json.dumps(trade_data.get('metadata', {}))
-            ))
-            conn.commit()
-            return cursor.lastrowid
+    def insert(self, table: str, data: Dict) -> Dict:
+        """Insert data into table"""
+        result = self._request("POST", table, data=data)
+        return result[0] if isinstance(result, list) else result
     
-    def close_trade(self, trade_id: int, exit_price: float, 
-                   profit_sol: float, profit_usd: float, 
-                   exit_signature: str) -> bool:
-        with self._get_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute("""
-                UPDATE trades 
-                SET status = 'closed', 
-                    exit_price = ?, 
-                    profit_sol = ?, 
-                    profit_usd = ?,
-                    closed_at = CURRENT_TIMESTAMP
-                WHERE id = ?
-            """, (exit_price, profit_sol, profit_usd, trade_id))
-            conn.commit()
-            return cursor.rowcount > 0
+    def select(self, table: str, columns: str = "*", filters: Optional[Dict] = None) -> List[Dict]:
+        """Select data from table"""
+        params = {"select": columns}
+        if filters:
+            for key, value in filters.items():
+                params[key] = f"eq.{value}"
+        
+        return self._request("GET", table, params=params) or []
     
-    def log_whale_alert(self, alert_data: Dict[str, Any]) -> int:
-        with self._get_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute("""
-                INSERT OR IGNORE INTO whale_alerts (
-                    signature, trader_address, token_mint, token_symbol,
-                    amount_usd, amount_tokens, transaction_type
-                ) VALUES (?, ?, ?, ?, ?, ?, ?)
-            """, (
-                alert_data.get('signature'),
-                alert_data.get('trader_address'),
-                alert_data.get('token_mint'),
-                alert_data.get('token_symbol'),
-                alert_data.get('amount_usd', 0),
-                alert_data.get('amount_tokens', 0),
-                alert_data.get('type', 'buy')
-            ))
-            conn.commit()
-            return cursor.lastrowid
+    def update(self, table: str, data: Dict, filters: Dict) -> List[Dict]:
+        """Update data in table"""
+        params = {}
+        for key, value in filters.items():
+            params[key] = f"eq.{value}"
+        
+        return self._request("PATCH", table, data=data, params=params) or []
     
-    def mark_whale_followed(self, alert_id: int, trade_id: int):
-        with self._get_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute("""
-                UPDATE whale_alerts 
-                SET followed = 1, our_trade_id = ?
-                WHERE id = ?
-            """, (trade_id, alert_id))
-            conn.commit()
-    
-    def get_open_trades(self) -> List[Dict]:
-        with self._get_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute("""
-                SELECT * FROM trades 
-                WHERE status = 'open' 
-                ORDER BY created_at DESC
-            """)
-            columns = [description[0] for description in cursor.description]
-            return [dict(zip(columns, row)) for row in cursor.fetchall()]
-    
-    def get_stats(self) -> Dict:
-        with self._get_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute("""
-                SELECT 
-                    COUNT(*) as total_trades,
-                    SUM(CASE WHEN profit_sol > 0 THEN 1 ELSE 0 END) as profitable_trades,
-                    SUM(profit_sol) as total_profit_sol,
-                    SUM(profit_usd) as total_profit_usd
-                FROM trades 
-                WHERE status = 'closed'
-            """)
-            row = cursor.fetchone()
-            return {
-                'total_trades': row[0] or 0,
-                'profitable_trades': row[1] or 0,
-                'total_profit_sol': row[2] or 0,
-                'total_profit_usd': row[3] or 0,
-                'win_rate': 0  # Calculate if needed
-            }
+    def delete(self, table: str, filters: Dict) -> None:
+        """Delete data from table"""
+        params = {}
+        for key, value in filters.items():
+            params[key] = f"eq.{value}"
+        
+        self._request("DELETE", table, params=params)
 
-db = Database()
+# Global client instance
+db = SupabaseClient()
+
+# Trade operations
+def save_trade(trade_data: Dict) -> Dict:
+    """Save a trade to database"""
+    return db.insert("trades", trade_data)
+
+def get_trades(limit: int = 100) -> List[Dict]:
+    """Get recent trades"""
+    return db.select("trades", columns="*")
+
+def update_trade(trade_id: str, updates: Dict) -> List[Dict]:
+    """Update a trade"""
+    return db.update("trades", updates, {"id": trade_id})
+
+# User operations  
+def get_user(user_id: int) -> Optional[Dict]:
+    """Get user by ID"""
+    users = db.select("users", filters={"user_id": str(user_id)})
+    return users[0] if users else None
+
+def save_user(user_data: Dict) -> Dict:
+    """Save or update user"""
+    return db.insert("users", user_data)
+
+# Whale alert operations
+def save_whale_alert(alert_data: Dict) -> Dict:
+    """Save whale alert"""
+    return db.insert("whale_alerts", alert_data)
+
+def get_recent_whale_alerts(limit: int = 50) -> List[Dict]:
+    """Get recent whale alerts"""
+    return db.select("whale_alerts", columns="*")
