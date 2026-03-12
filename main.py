@@ -2,9 +2,9 @@
 """IceAlpha Hunter Pro - Main Entry"""
 import sys
 import os
-import asyncio
 import logging
 import threading
+import time
 from flask import Flask, jsonify
 
 logging.basicConfig(
@@ -19,7 +19,7 @@ bot_running = False
 
 @app.route('/')
 def health():
-    return jsonify({"status": "healthy", "service": "IceAlpha Hunter Pro", "version": "2.0"})
+    return jsonify({"status": "healthy", "service": "IceAlpha Hunter Pro", "version": "2.1"})
 
 @app.route('/status')
 def status():
@@ -33,7 +33,7 @@ def run_flask():
     port = int(os.getenv("PORT", 10000))
     app.run(host='0.0.0.0', port=port, threaded=True)
 
-async def main_async():
+def main():
     global bot_running
     
     from config import config
@@ -53,10 +53,17 @@ async def main_async():
     logger.info(f"🎯 Min whale: ${config.MIN_WHALE_AMOUNT_USD}")
     logger.info(f"💳 Wallet: {wallet.address[:8]}...")
     
+    # Start Flask in background
+    flask_thread = threading.Thread(target=run_flask, daemon=True)
+    flask_thread.start()
+    logger.info("✅ Health check server started")
+    
+    # Start components
+    trading_engine.start()
+    whale_monitor.start()
+    bot_running = True
+    
     try:
-        await trading_engine.start()
-        await whale_monitor.start()
-        bot_running = True
         telegram_bot.run()
     except KeyboardInterrupt:
         logger.info("🛑 Shutdown requested")
@@ -65,22 +72,11 @@ async def main_async():
         return 1
     finally:
         bot_running = False
-        await whale_monitor.stop()
-        await trading_engine.stop()
+        whale_monitor.stop()
+        trading_engine.stop()
         telegram_bot.stop()
+    
     return 0
 
-def main():
-    flask_thread = threading.Thread(target=run_flask, daemon=True)
-    flask_thread.start()
-    logger.info("✅ Health check server started")
-    
-    try:
-        exit_code = asyncio.run(main_async())
-        sys.exit(exit_code)
-    except Exception as e:
-        logger.error(f"Main error: {e}")
-        sys.exit(1)
-
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

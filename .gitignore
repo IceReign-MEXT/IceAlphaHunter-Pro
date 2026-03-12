@@ -10,14 +10,7 @@ __pycache__/
 dist/
 build/
 venv/
-.env.local
 .DS_Store
 .vscode/
 .idea/
 *.log
-bot-wallet.json
-repair.sh
-diagnose.py
-test_connections.py
-full_diagnostic.py
-IceAlphaHunter-Pro/

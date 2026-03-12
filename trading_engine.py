@@ -1,6 +1,5 @@
-"""Trading Engine"""
-import asyncio
-import aiohttp
+"""Trading Engine - Synchronous Version"""
+import requests
 from typing import Dict, Optional
 from decimal import Decimal
 import logging
@@ -12,20 +11,18 @@ logger = logging.getLogger(__name__)
 
 class TradingEngine:
     def __init__(self):
-        self.session: Optional[aiohttp.ClientSession] = None
+        self.session = requests.Session()
         self.is_running = False
     
-    async def start(self):
-        self.session = aiohttp.ClientSession()
+    def start(self):
         self.is_running = True
         logger.info("✅ Trading engine started")
     
-    async def stop(self):
+    def stop(self):
         self.is_running = False
-        if self.session:
-            await self.session.close()
+        self.session.close()
     
-    async def get_token_price(self, token_address: str) -> Optional[Decimal]:
+    def get_token_price(self, token_address: str) -> Optional[Decimal]:
         try:
             url = f"{config.JUPITER_QUOTE_API}/quote"
             params = {
@@ -34,24 +31,24 @@ class TradingEngine:
                 "amount": "1000000000",
                 "slippageBps": "50"
             }
-            async with self.session.get(url, params=params) as resp:
-                if resp.status == 200:
-                    data = await resp.json()
-                    out_amount = int(data.get("outAmount", 0))
-                    return Decimal(out_amount) / Decimal(1_000_000)
-                return None
+            resp = self.session.get(url, params=params, timeout=30)
+            if resp.status_code == 200:
+                data = resp.json()
+                out_amount = int(data.get("outAmount", 0))
+                return Decimal(out_amount) / Decimal(1_000_000)
+            return None
         except Exception as e:
             logger.error(f"Price fetch error: {e}")
             return None
     
-    async def buy_token(self, token_address: str, amount_sol: float) -> bool:
+    def buy_token(self, token_address: str, amount_sol: float) -> bool:
         if not config.AUTO_TRADE_ENABLED:
             logger.info("Auto-trading disabled")
             return False
         
         try:
             db.save_trade({
-                "tx_signature": f"pending_{token_address[:8]}",
+                "tx_signature": f"pending_{token_address[:8]}_{int(time.time())}",
                 "token_address": token_address,
                 "token_symbol": "UNKNOWN",
                 "entry_price": 0,
@@ -64,10 +61,11 @@ class TradingEngine:
             logger.error(f"Buy error: {e}")
             return False
     
-    async def sell_token(self, token_address: str, percentage: float = 100) -> bool:
+    def sell_token(self, token_address: str, percentage: float = 100) -> bool:
         if not config.AUTO_TRADE_ENABLED:
             return False
         logger.info(f"🔴 Sell order: {percentage}% of {token_address[:8]}")
         return True
 
+import time
 trading_engine = TradingEngine()

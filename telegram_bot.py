@@ -65,7 +65,7 @@ class TelegramBot:
         except Exception as e:
             logger.error(f"Channel msg error: {e}")
     
-    async def on_whale_alert(self, alert: Dict):
+    def on_whale_alert(self, alert: Dict):
         emoji = "🟢" if alert["alert_type"] == "buy" else "🔴"
         msg = (
             f"{emoji} <b>Whale Alert!</b>\\n\\n"
@@ -77,7 +77,7 @@ class TelegramBot:
         )
         self.send_channel_message(msg)
         if config.AUTO_TRADE_ENABLED and alert["alert_type"] == "buy":
-            await trading_engine.buy_token(alert["token_address"], 0.1)
+            trading_engine.buy_token(alert["token_address"], 0.1)
     
     def cmd_start(self, update: Update, context: CallbackContext):
         user = update.effective_user
@@ -123,7 +123,8 @@ class TelegramBot:
         msg = "<b>📈 Recent Trades:</b>\\n\\n"
         for t in trades:
             emoji = "🟢" if t["status"] == "completed" else "🟡"
-            msg += f\"{emoji} <b>{t['token_symbol']}</b> - {t['status']}\\n\"\n        update.message.reply_html(msg)
+            msg += f"{emoji} <b>{t['token_symbol']}</b> - {t['status']}\\n"
+        update.message.reply_html(msg)
     
     def cmd_whales(self, update: Update, context: CallbackContext):
         alerts = db.get_recent_whale_alerts(limit=5)
@@ -133,11 +134,13 @@ class TelegramBot:
         msg = "<b>🐋 Recent Alerts:</b>\\n\\n"
         for a in alerts:
             emoji = "🟢" if a["alert_type"] == "buy" else "🔴"
-            msg += f\"{emoji} {a['alert_type'].upper()} <code>{a['whale_address'][:6]}...</code> ${a['amount_usd']:,.0f}\\n\"\n        update.message.reply_html(msg)
+            msg += f"{emoji} {a['alert_type'].upper()} <code>{a['whale_address'][:6]}...</code> ${a['amount_usd']:,.0f}\\n"
+        update.message.reply_html(msg)
     
     def cmd_profit(self, update: Update, context: CallbackContext):
         trades = db.get_trades(limit=100)
-        profit = sum(t.get(\"profit_usd\", 0) for t in trades if t[\"status\"] == \"completed\")\        wins = len([t for t in trades if t.get(\"profit_usd\", 0) > 0])
+        profit = sum(t.get("profit_usd", 0) for t in trades if t["status"] == "completed")
+        wins = len([t for t in trades if t.get("profit_usd", 0) > 0])
         total = len(trades)
         rate = (wins/total*100) if total > 0 else 0
         update.message.reply_html(
@@ -153,8 +156,7 @@ class TelegramBot:
             return
         token, amt = context.args[0], float(context.args[1])
         update.message.reply_text(f"🟢 Buying {amt} SOL of {token[:8]}...")
-        import asyncio
-        success = asyncio.run(trading_engine.buy_token(token, amt))
+        success = trading_engine.buy_token(token, amt)
         update.message.reply_text("✅ Buy order placed!" if success else "❌ Failed")
     
     def cmd_sell(self, update: Update, context: CallbackContext):
@@ -164,8 +166,7 @@ class TelegramBot:
         token = context.args[0]
         pct = float(context.args[1]) if len(context.args) > 1 else 100
         update.message.reply_text(f"🔴 Selling {pct}% of {token[:8]}...")
-        import asyncio
-        success = asyncio.run(trading_engine.sell_token(token, pct))
+        success = trading_engine.sell_token(token, pct)
         update.message.reply_text("✅ Sell order placed!" if success else "❌ Failed")
     
     def cmd_add_whale(self, update: Update, context: CallbackContext):

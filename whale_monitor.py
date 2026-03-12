@@ -1,6 +1,7 @@
-"""Whale Monitor"""
-import asyncio
-import aiohttp
+"""Whale Monitor - Synchronous Version"""
+import requests
+import time
+import threading
 from typing import Dict, List, Callable
 import logging
 from config import config
@@ -10,40 +11,42 @@ logger = logging.getLogger(__name__)
 
 class WhaleMonitor:
     def __init__(self):
-        self.session: aiohttp.ClientSession = None
+        self.session = requests.Session()
         self.callbacks: List[Callable] = []
         self.is_running = False
         self.known_whales = []
+        self.monitor_thread = None
     
-    async def start(self):
-        self.session = aiohttp.ClientSession()
+    def start(self):
         self.is_running = True
         wallets = db.get_monitored_wallets()
         for w in wallets:
             self.known_whales.append(w["address"])
         logger.info(f"✅ Whale monitor started ({len(self.known_whales)} wallets)")
-        asyncio.create_task(self._monitor_loop())
+        
+        # Start monitoring in background thread
+        self.monitor_thread = threading.Thread(target=self._monitor_loop, daemon=True)
+        self.monitor_thread.start()
     
-    async def stop(self):
+    def stop(self):
         self.is_running = False
-        if self.session:
-            await self.session.close()
+        self.session.close()
     
     def on_whale_movement(self, callback: Callable):
         self.callbacks.append(callback)
     
-    async def _monitor_loop(self):
+    def _monitor_loop(self):
         while self.is_running:
             try:
                 for whale in self.known_whales:
-                    await self._check_transactions(whale)
-                    await asyncio.sleep(1)
-                await asyncio.sleep(10)
+                    self._check_transactions(whale)
+                    time.sleep(1)
+                time.sleep(30)  # Check every 30 seconds
             except Exception as e:
                 logger.error(f"Monitor error: {e}")
-                await asyncio.sleep(30)
+                time.sleep(60)
     
-    async def _check_transactions(self, address: str):
+    def _check_transactions(self, address: str):
         try:
             url = config.HELIUS_RPC_URL
             payload = {
@@ -52,16 +55,16 @@ class WhaleMonitor:
                 "method": "getSignaturesForAddress",
                 "params": [address, {"limit": 3}]
             }
-            async with self.session.post(url, json=payload) as resp:
-                if resp.status == 200:
-                    data = await resp.json()
-                    sigs = data.get("result", [])
-                    for sig in sigs:
-                        await self._process_signature(sig["signature"], address)
+            resp = self.session.post(url, json=payload, timeout=30)
+            if resp.status_code == 200:
+                data = resp.json()
+                sigs = data.get("result", [])
+                for sig in sigs:
+                    self._process_signature(sig["signature"], address)
         except Exception as e:
             logger.error(f"Check error: {e}")
     
-    async def _process_signature(self, signature: str, whale: str):
+    def _process_signature(self, signature: str, whale: str):
         alert = {
             "whale_address": whale,
             "token_address": "Unknown",
@@ -73,7 +76,7 @@ class WhaleMonitor:
         }
         db.save_whale_alert(alert)
         for callback in self.callbacks:
-            await callback(alert)
+            callback(alert)
     
     def add_whale(self, address: str, label: str = ""):
         if address not in self.known_whales:
