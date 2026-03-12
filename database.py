@@ -1,14 +1,14 @@
-"""PostgreSQL Database Module"""
+"""PostgreSQL Database Module - psycopg v3"""
 import os
-import psycopg2
-from psycopg2.extras import RealDictCursor
+import psycopg
+from psycopg.rows import dict_row
 from typing import Dict, List, Optional
 import logging
 
 logger = logging.getLogger(__name__)
 
 class Database:
-    """PostgreSQL Database Handler"""
+    """PostgreSQL Database Handler using psycopg v3"""
     
     def __init__(self):
         self.connection_string = os.getenv("DATABASE_URL", "")
@@ -18,16 +18,16 @@ class Database:
     
     def connect(self):
         try:
-            self.conn = psycopg2.connect(self.connection_string)
-            self.conn.autocommit = True
-            logger.info("✅ Database connected")
+            self.conn = psycopg.connect(self.connection_string, row_factory=dict_row)
+            logger.info("✅ Database connected (psycopg v3)")
         except Exception as e:
             logger.error(f"❌ Database connection failed: {e}")
             raise
     
     def init_tables(self):
         tables = [
-            """CREATE TABLE IF NOT EXISTS trades (
+            """
+            CREATE TABLE IF NOT EXISTS trades (
                 id SERIAL PRIMARY KEY,
                 tx_signature VARCHAR(100) UNIQUE,
                 token_address VARCHAR(50),
@@ -39,8 +39,10 @@ class Database:
                 profit_usd DECIMAL(20, 10),
                 status VARCHAR(20) DEFAULT 'pending',
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )""",
-            """CREATE TABLE IF NOT EXISTS whale_alerts (
+            )
+            """,
+            """
+            CREATE TABLE IF NOT EXISTS whale_alerts (
                 id SERIAL PRIMARY KEY,
                 whale_address VARCHAR(50),
                 token_address VARCHAR(50),
@@ -50,26 +52,32 @@ class Database:
                 tx_signature VARCHAR(100),
                 alert_type VARCHAR(20),
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )""",
-            """CREATE TABLE IF NOT EXISTS users (
+            )
+            """,
+            """
+            CREATE TABLE IF NOT EXISTS users (
                 id SERIAL PRIMARY KEY,
                 user_id BIGINT UNIQUE,
                 username VARCHAR(50),
                 subscription_type VARCHAR(20) DEFAULT 'free',
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )""",
-            """CREATE TABLE IF NOT EXISTS monitored_wallets (
+            )
+            """,
+            """
+            CREATE TABLE IF NOT EXISTS monitored_wallets (
                 id SERIAL PRIMARY KEY,
                 address VARCHAR(50) UNIQUE,
                 label VARCHAR(50),
                 is_whale BOOLEAN DEFAULT FALSE,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )"""
+            )
+            """
         ]
         
         with self.conn.cursor() as cur:
             for sql in tables:
                 cur.execute(sql)
+        self.conn.commit()
         logger.info("✅ Database tables initialized")
     
     def save_trade(self, trade_data: Dict) -> int:
@@ -81,12 +89,13 @@ class Database:
                 RETURNING id
             """, trade_data)
             result = cur.fetchone()
-            return result[0] if result else 0
+            self.conn.commit()
+            return result["id"] if result else 0
     
     def get_trades(self, limit: int = 100) -> List[Dict]:
-        with self.conn.cursor(cursor_factory=RealDictCursor) as cur:
+        with self.conn.cursor() as cur:
             cur.execute("SELECT * FROM trades ORDER BY created_at DESC LIMIT %s", (limit,))
-            return [dict(row) for row in cur.fetchall()]
+            return cur.fetchall()
     
     def save_whale_alert(self, alert_data: Dict) -> int:
         with self.conn.cursor() as cur:
@@ -96,18 +105,18 @@ class Database:
                 RETURNING id
             """, alert_data)
             result = cur.fetchone()
-            return result[0] if result else 0
+            self.conn.commit()
+            return result["id"] if result else 0
     
     def get_recent_whale_alerts(self, limit: int = 50) -> List[Dict]:
-        with self.conn.cursor(cursor_factory=RealDictCursor) as cur:
+        with self.conn.cursor() as cur:
             cur.execute("SELECT * FROM whale_alerts ORDER BY created_at DESC LIMIT %s", (limit,))
-            return [dict(row) for row in cur.fetchall()]
+            return cur.fetchall()
     
     def get_user(self, user_id: int) -> Optional[Dict]:
-        with self.conn.cursor(cursor_factory=RealDictCursor) as cur:
+        with self.conn.cursor() as cur:
             cur.execute("SELECT * FROM users WHERE user_id = %s", (user_id,))
-            row = cur.fetchone()
-            return dict(row) if row else None
+            return cur.fetchone()
     
     def save_user(self, user_data: Dict):
         with self.conn.cursor() as cur:
@@ -116,6 +125,7 @@ class Database:
                 VALUES (%(user_id)s, %(username)s, %(subscription_type)s)
                 ON CONFLICT (user_id) DO UPDATE SET username = EXCLUDED.username
             """, user_data)
+            self.conn.commit()
     
     def add_monitored_wallet(self, address: str, label: str = "", is_whale: bool = False):
         with self.conn.cursor() as cur:
@@ -124,5 +134,11 @@ class Database:
                 VALUES (%s, %s, %s)
                 ON CONFLICT (address) DO NOTHING
             """, (address, label, is_whale))
+            self.conn.commit()
+    
+    def get_monitored_wallets(self) -> List[Dict]:
+        with self.conn.cursor() as cur:
+            cur.execute("SELECT * FROM monitored_wallets")
+            return cur.fetchall()
 
 db = Database()
