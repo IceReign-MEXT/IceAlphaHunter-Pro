@@ -1,3 +1,6 @@
+# Fix for Python 3.13+ (imghdr removed)
+standard-imghdr==3.13.0
+
 # Web Framework
 Flask==2.3.3
 Werkzeug==2.3.7
@@ -19,7 +22,7 @@ charset-normalizer==3.3.0
 # Environment
 python-dotenv==1.0.0
 
-# Database - Try psycopg first, fallback to psycopg2
+# Database
 psycopg[binary]==3.2.10
 psycopg2-binary==2.9.9
 
