@@ -1,33 +1,13 @@
 services:
-  - type: web
+  - type: worker
     name: icealpha-hunter
-    runtime: docker
-    plan: starter
-    dockerfilePath: ./Dockerfile
+    runtime: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: python main.py
     envVars:
       - key: BOT_TOKEN
-        sync: false
+        value: 8558570286:AAF5-FOPUplRxzeCAc_zbJEQWbNMKYogkKQ
       - key: HELIUS_API_KEY
-        sync: false
-      - key: HELIUS_RPC_URL
-        sync: false
-      - key: WALLET_PRIVATE_KEY
-        sync: false
-      - key: WALLET_PUBLIC_KEY
-        sync: false
-      - key: CHANNEL_ID
-        sync: false
-      - key: ADMIN_ID
-        sync: false
-      - key: MIN_WHALE_AMOUNT_USD
-        value: 5000
-      - key: MAX_POSITION_SOL
-        value: 1.0
-      - key: SLIPPAGE_BPS
-        value: 100
-      - key: AUTO_TRADE_ENABLED
-        value: false
-      - key: DATABASE_URL
-        sync: false
-      - key: PORT
-        value: 10000
+        value: 8215b2fb-5544-4c82-8806-5721900bfa35
+      # ... add all other vars
+
