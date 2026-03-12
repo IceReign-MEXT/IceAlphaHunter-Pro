@@ -1,6 +1,9 @@
 # Fix for Python 3.14 (imghdr removed)
 standard-imghdr==3.13.0
 
+# CRITICAL: Pin setuptools to version that includes pkg_resources
+setuptools==75.8.0
+
 # Web Framework
 Flask==2.3.3
 Werkzeug==2.3.7
