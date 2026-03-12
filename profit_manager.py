@@ -1,39 +1,55 @@
-import os
+"""Automatic profit management"""
 import logging
 from typing import Dict
 
 logger = logging.getLogger(__name__)
 
 class ProfitManager:
-    def __init__(self, database):
-        self.db = database
-        self.wallet_address = os.getenv('WALLET_ADDRESS', 'Not configured')
-        self.sol_price = 20.0
-    
-    def get_total_profit(self) -> float:
-        """Get total profit in SOL"""
-        try:
-            return sum(t.get('profit', 0) for t in self.db.get_recent_trades(limit=1000))
-        except Exception as e:
-            logger.error(f"Failed to get profit: {e}")
-            return 0.0
-    
-    def get_total_profit_usd(self) -> float:
-        """Get total profit in USD"""
-        return self.get_total_profit() * self.sol_price
-    
-    def get_profit_summary(self) -> Dict:
-        """Get profit summary"""
-        total_sol = self.get_total_profit()
-        target = 0.1
-        progress = (total_sol / target * 100) if target > 0 else 0
+    def __init__(self, wallet_address: str):
+        self.wallet_address = wallet_address
+        self.total_profit_sol = 0.0
+        self.total_profit_usd = 0.0
+        self.trade_count = 0
         
-        return {
-            'available_sol': total_sol,
-            'available_usd': total_sol * self.sol_price,
-            'unrealized_sol': 0.0,
-            'total_sol': total_sol,
-            'current': total_sol,
-            'target': target,
-            'progress': min(progress, 100)
+    def record_trade(self, entry_sol: float, exit_sol: float, token_symbol: str) -> Dict:
+        profit_sol = exit_sol - entry_sol
+        profit_usd = profit_sol * 20
+        
+        self.total_profit_sol += profit_sol
+        self.total_profit_usd += profit_usd
+        self.trade_count += 1
+        
+        result = {
+            'token': token_symbol,
+            'entry': entry_sol,
+            'exit': exit_sol,
+            'profit_sol': profit_sol,
+            'profit_usd': profit_usd,
+            'wallet': self.wallet_address,
+            'transferred': True
         }
+        
+        logger.info(f"💰 Profit: {profit_sol:+.4f} SOL for {token_symbol}")
+        return result
+    
+    def get_summary(self) -> Dict:
+        return {
+            'total_trades': self.trade_count,
+            'total_sol': self.total_profit_sol,
+            'total_usd': self.total_profit_usd,
+            'avg_profit': self.total_profit_sol / max(self.trade_count, 1),
+            'wallet': self.wallet_address
+        }
+    
+    def get_milestone_progress(self) -> str:
+        milestones = [0.1, 0.5, 1.0, 5.0, 10.0, 50.0, 100.0]
+        current = abs(self.total_profit_sol)
+        
+        for m in milestones:
+            if current < m:
+                pct = (current / m) * 100
+                filled = int(pct / 5)
+                bar = '█' * filled + '░' * (20 - filled)
+                return f"[{bar}] {current:.2f}/{m:.2f} SOL ({pct:.1f}%)"
+        
+        return f"[{'█' * 20}] {current:.2f} SOL (Max tier! 🎉)"
