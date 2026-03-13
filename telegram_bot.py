@@ -1,5 +1,6 @@
-"""Professional Telegram Bot"""
+"""Professional Telegram Bot - Conflict Fixed"""
 import logging
+import time
 from datetime import datetime
 from telegram import Bot, Update, ParseMode
 from telegram.ext import Updater, CommandHandler, CallbackContext
@@ -21,6 +22,15 @@ class TelegramBot:
         try:
             self.updater = Updater(config.BOT_TOKEN, use_context=True)
             self.bot = self.updater.bot
+            
+            # FIX: Clear any pending updates to avoid conflict
+            logger.info("Clearing pending updates...")
+            try:
+                self.bot.get_updates(offset=-1, limit=1)
+                time.sleep(1)
+            except:
+                pass
+            
             dp = self.updater.dispatcher
             
             # Commands
@@ -37,19 +47,25 @@ class TelegramBot:
             whale_monitor.on_whale_movement(self.on_whale)
             
             self.running = True
-            logger.info("Bot started")
+            logger.info("✅ Bot started successfully")
             
-            # Startup message to channel
-            self.bot.send_message(
-                chat_id=config.channel_id_int,
-                text="🚀 <b>IceAlpha Hunter Pro</b> Online!\n💰 Auto-trading active\n🐋 Monitoring whales...",
-                parse_mode=ParseMode.HTML
-            )
+            # Startup message
+            try:
+                self.bot.send_message(
+                    chat_id=config.channel_id_int,
+                    text="🚀 <b>IceAlpha Hunter Pro</b> Online!\\n💰 Auto-trading active\\n🐋 Monitoring whales...",
+                    parse_mode=ParseMode.HTML
+                )
+            except Exception as e:
+                logger.warning(f"Channel message failed: {e}")
             
-            self.updater.start_polling()
+            # Start with drop_pending_updates=True to avoid conflict
+            self.updater.start_polling(drop_pending_updates=True)
             self.updater.idle()
+            
         except Exception as e:
             logger.error(f"Bot error: {e}")
+            raise
     
     def stop(self):
         self.running = False
@@ -58,12 +74,12 @@ class TelegramBot:
     
     def on_whale(self, alert):
         msg = (
-            f"{'🟢' if alert['alert_type']=='buy' else '🔴'} <b>WHALE ALERT!</b>\n\n"
-            f"🐋 {alert['whale_address'][:8]}...\n"
-            f"💎 {alert['token_address'][:8]}...\n"
-            f"📊 {alert['alert_type'].upper()}\n"
-            f"💰 ${alert['amount_usd']:,.2f}\n"
-            f"🔗 <a href='https://solscan.io/tx/{alert['tx_signature']}'>View</a>\n\n"
+            f"{'🟢' if alert['alert_type']=='buy' else '🔴'} <b>WHALE ALERT!</b>\\n\\n"
+            f"🐋 {alert['whale_address'][:8]}...\\n"
+            f"💎 {alert['token_address'][:8]}...\\n"
+            f"📊 {alert['alert_type'].upper()}\\n"
+            f"💰 ${alert['amount_usd']:,.2f}\\n"
+            f"🔗 <a href='https://solscan.io/tx/{alert['tx_signature']}'>View</a>\\n\\n"
             f"<i>Pro users auto-copying...</i>"
         )
         try:
@@ -175,15 +191,15 @@ Reply with tx to activate
             update.message.reply_text("No trades yet. Use /buy to start!")
             return
         
-        msg = "<b>📈 Your Trades:</b>\n\n"
+        msg = "<b>📈 Your Trades:</b>\\n\\n"
         total = 0
         for t in trades:
             pnl = t.get('profit_sol', 0)
             total += pnl
             emoji = "🟢" if pnl > 0 else "🔴" if pnl < 0 else "⚪"
-            msg += f"{emoji} {t['token_symbol']}: {pnl:+.4f} SOL\n"
+            msg += f"{emoji} {t['token_symbol']}: {pnl:+.4f} SOL\\n"
         
-        msg += f"\n<b>Total: {total:+.4f} SOL</b>"
+        msg += f"\\n<b>Total: {total:+.4f} SOL</b>"
         update.message.reply_html(msg)
     
     def profit(self, update: Update, context: CallbackContext):
@@ -212,7 +228,7 @@ Reply with tx to activate
         
         if not subscription_manager.can_use(uid, 'auto'):
             update.message.reply_html(
-                "❌ <b>Locked</b>\nNeed Basic+ plan\n/upgrade to unlock"
+                "❌ <b>Locked</b>\\nNeed Basic+ plan\\n/upgrade to unlock"
             )
             return
         
@@ -236,7 +252,7 @@ Reply with tx to activate
         addr = context.args[0]
         whale_monitor.add_whale(addr, "", True)
         update.message.reply_html(
-            f"✅ Whale added: <code>{addr[:8]}...</code>\n"
+            f"✅ Whale added: <code>{addr[:8]}...</code>\\n"
             f"Alerts > ${config.MIN_WHALE_AMOUNT_USD}"
         )
     
